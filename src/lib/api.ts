@@ -51,6 +51,8 @@ export type Node = {
   month_rx: number
   month_tx: number
   month_start: string
+  day_rx: number
+  day_tx: number
   /** Panel only. */
   hostname?: string
   ip?: string
