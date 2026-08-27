@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react"
+import { ArrowLeft } from "lucide-react"
 import {
   Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts"
 
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Meter } from "@/components/Meter"
 import { monthUsage, Status, TRAFFIC_MODES, trafficFoot } from "@/components/NodeCard"
@@ -51,7 +52,7 @@ function Fact({ label, value }: { label: string; value?: string | number | null 
   )
 }
 
-export function NodeDetail({ node, tasks, onClose }: { node: Node; tasks: PingTask[]; onClose: () => void }) {
+export function NodeDetail({ node, tasks, onBack }: { node: Node; tasks: PingTask[]; onBack: () => void }) {
   const [hours, setHours] = useState(6)
   const [data, setData] = useState<{ metrics: Point[]; ping: PingPoint[] } | null>(null)
 
@@ -73,162 +74,161 @@ export function NodeDetail({ node, tasks, onClose }: { node: Node; tasks: PingTa
     .filter((s) => s.points.length > 0)
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {node.name}
-            <Status node={node} />
-            {node.agent_version && (
-              <Badge variant="outline" className="font-normal">
-                agent {node.agent_version}
-              </Badge>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Fact label="主机名" value={node.hostname} />
-          <Fact label="系统" value={node.os} />
-          <Fact label="内核" value={node.kernel} />
-          <Fact label="架构" value={`${node.arch}${node.virt && node.virt !== "none" ? ` · ${node.virt}` : ""}`} />
-          <Fact label="CPU" value={node.cpu_name ? `${node.cpu_name} × ${node.cpu_cores}` : null} />
-          <Fact label="内存 / 硬盘" value={`${bytes(node.mem_total)} / ${bytes(node.disk_total)}`} />
-          <Fact label="IP" value={node.ip} />
-          <Fact label="运行时间" value={m ? uptime(m.uptime) : null} />
-          <Fact
-            label="价格"
-            value={node.price > 0 ? `${money(node.price, node.currency)} / ${CYCLES[node.billing_cycle] ?? node.billing_cycle}` : null}
-          />
-          <Fact label="到期" value={node.expires_at} />
-          <Fact label="连接数" value={m ? `TCP ${m.tcp} · UDP ${m.udp}` : null} />
-          <Fact label="进程" value={m?.procs} />
-        </dl>
-
-        {node.remark && (
-          <p className="rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap">{node.remark}</p>
+    <div className="space-y-5">
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft /> 返回
+        </Button>
+        <h2 className="truncate text-lg font-medium">{node.name}</h2>
+        <Status node={node} />
+        {node.agent_version && (
+          <Badge variant="outline" className="font-normal">
+            agent {node.agent_version}
+          </Badge>
         )}
+      </div>
 
-        <div className="space-y-3 rounded-lg border p-4">
-          <Meter
-            label="本月流量"
-            pct={node.traffic_limit > 0 ? percent(monthUsage(node), node.traffic_limit) : null}
-            foot={trafficFoot(node)}
-          />
-          <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-xs sm:grid-cols-4">
-            <span className="tnum">入站实时 {m ? rate(m.net_rx) : "—"}</span>
-            <span className="tnum">出站实时 {m ? rate(m.net_tx) : "—"}</span>
-            <span className="tnum text-muted-foreground">入站总计 {bytes(node.total_rx)}</span>
-            <span className="tnum text-muted-foreground">出站总计 {bytes(node.total_tx)}</span>
-            <span className="tnum text-muted-foreground">本月入站 {bytes(node.month_rx)}</span>
-            <span className="tnum text-muted-foreground">本月出站 {bytes(node.month_tx)}</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            周期自 {node.month_start || "—"} 起 · 每月 {node.traffic_reset_day} 日重置 ·{" "}
-            {TRAFFIC_MODES[node.traffic_mode] ?? node.traffic_mode}
-          </p>
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Fact label="主机名" value={node.hostname} />
+        <Fact label="系统" value={node.os} />
+        <Fact label="内核" value={node.kernel} />
+        <Fact label="架构" value={`${node.arch}${node.virt && node.virt !== "none" ? ` · ${node.virt}` : ""}`} />
+        <Fact label="CPU" value={node.cpu_name ? `${node.cpu_name} × ${node.cpu_cores}` : null} />
+        <Fact label="内存 / 硬盘" value={`${bytes(node.mem_total)} / ${bytes(node.disk_total)}`} />
+        <Fact label="IP" value={node.ip} />
+        <Fact label="运行时间" value={m ? uptime(m.uptime) : null} />
+        <Fact
+          label="价格"
+          value={node.price > 0 ? `${money(node.price, node.currency)} / ${CYCLES[node.billing_cycle] ?? node.billing_cycle}` : null}
+        />
+        <Fact label="到期" value={node.expires_at} />
+        <Fact label="连接数" value={m ? `TCP ${m.tcp} · UDP ${m.udp}` : null} />
+        <Fact label="进程" value={m?.procs} />
+      </dl>
+
+      {node.remark && (
+        <p className="rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap">{node.remark}</p>
+      )}
+
+      <div className="space-y-3 rounded-lg border p-4">
+        <Meter
+          label="本月流量"
+          pct={node.traffic_limit > 0 ? percent(monthUsage(node), node.traffic_limit) : null}
+          foot={trafficFoot(node)}
+        />
+        <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-xs sm:grid-cols-4">
+          <span className="tnum">入站实时 {m ? rate(m.net_rx) : "—"}</span>
+          <span className="tnum">出站实时 {m ? rate(m.net_tx) : "—"}</span>
+          <span className="tnum text-muted-foreground">入站总计 {bytes(node.total_rx)}</span>
+          <span className="tnum text-muted-foreground">出站总计 {bytes(node.total_tx)}</span>
+          <span className="tnum text-muted-foreground">本月入站 {bytes(node.month_rx)}</span>
+          <span className="tnum text-muted-foreground">本月出站 {bytes(node.month_tx)}</span>
         </div>
+        <p className="text-xs text-muted-foreground">
+          周期自 {node.month_start || "—"} 起 · 每月 {node.traffic_reset_day} 日重置 ·{" "}
+          {TRAFFIC_MODES[node.traffic_mode] ?? node.traffic_mode}
+        </p>
+      </div>
 
-        <div className="flex gap-1">
-          {RANGES.map((r) => (
-            <button
-              key={r.hours}
-              onClick={() => setHours(r.hours)}
-              className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
-                hours === r.hours ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+      <div className="flex gap-1">
+        {RANGES.map((r) => (
+          <button
+            key={r.hours}
+            onClick={() => setHours(r.hours)}
+            className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
+              hours === r.hours ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
 
-        {!data ? (
-          <Skeleton className="h-40 w-full" />
-        ) : data.metrics.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">这段时间还没有历史数据</p>
-        ) : (
-          <div className="space-y-5">
-            <Panel title="CPU 与负载">
+      {!data ? (
+        <Skeleton className="h-40 w-full" />
+      ) : data.metrics.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">这段时间还没有历史数据</p>
+      ) : (
+        <div className="space-y-5">
+          <Panel title="CPU 与负载">
+            <ResponsiveContainer>
+              <AreaChart data={data.metrics}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
+                <YAxis domain={[0, 100]} unit="%" width={40} {...AXIS} />
+                <Tooltip
+                  labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
+                  formatter={(v, name) => [name === "cpu" ? `${Number(v).toFixed(1)}%` : Number(v).toFixed(2), name === "cpu" ? "CPU" : "负载"]}
+                  contentStyle={{ fontSize: 12 }}
+                />
+                <Area dataKey="cpu" stroke="var(--color-chart-1)" fill="var(--color-chart-1)" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
+                <Area dataKey="load1" stroke="var(--color-chart-3)" fill="none" strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Panel>
+
+          <Panel title="内存">
+            <ResponsiveContainer>
+              <AreaChart data={data.metrics}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
+                <YAxis tickFormatter={(v) => bytes(v, 0)} width={62} {...AXIS} />
+                <Tooltip
+                  labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
+                  formatter={(v) => bytes(Number(v))}
+                  contentStyle={{ fontSize: 12 }}
+                />
+                <Area dataKey="mem_used" name="内存" stroke="var(--color-chart-2)" fill="var(--color-chart-2)" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Panel>
+
+          <Panel title="网络速率">
+            <ResponsiveContainer>
+              <LineChart data={data.metrics}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
+                <YAxis tickFormatter={(v) => bytes(v, 0)} width={62} {...AXIS} />
+                <Tooltip
+                  labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
+                  formatter={(v) => rate(Number(v))}
+                  contentStyle={{ fontSize: 12 }}
+                />
+                <Line dataKey="net_rx" name="下行" stroke="var(--color-ok)" strokeWidth={1.5} dot={false} />
+                <Line dataKey="net_tx" name="上行" stroke="var(--color-chart-1)" strokeWidth={1.5} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Panel>
+
+          {pingSeries.length > 0 && (
+            <Panel title="延迟监控 (TCP)">
               <ResponsiveContainer>
-                <AreaChart data={data.metrics}>
+                <LineChart>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                  <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
-                  <YAxis domain={[0, 100]} unit="%" width={40} {...AXIS} />
+                  <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} tickFormatter={clock} {...AXIS} minTickGap={40} />
+                  <YAxis unit="ms" width={48} {...AXIS} />
                   <Tooltip
                     labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
-                    formatter={(v, name) => [name === "cpu" ? `${Number(v).toFixed(1)}%` : Number(v).toFixed(2), name === "cpu" ? "CPU" : "负载"]}
+                    formatter={(v) => `${Number(v)} ms`}
                     contentStyle={{ fontSize: 12 }}
                   />
-                  <Area dataKey="cpu" stroke="var(--color-chart-1)" fill="var(--color-chart-1)" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
-                  <Area dataKey="load1" stroke="var(--color-chart-3)" fill="none" strokeWidth={1.5} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Panel>
-
-            <Panel title="内存">
-              <ResponsiveContainer>
-                <AreaChart data={data.metrics}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                  <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
-                  <YAxis tickFormatter={(v) => bytes(v, 0)} width={62} {...AXIS} />
-                  <Tooltip
-                    labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
-                    formatter={(v) => bytes(Number(v))}
-                    contentStyle={{ fontSize: 12 }}
-                  />
-                  <Area dataKey="mem_used" name="内存" stroke="var(--color-chart-2)" fill="var(--color-chart-2)" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Panel>
-
-            <Panel title="网络速率">
-              <ResponsiveContainer>
-                <LineChart data={data.metrics}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                  <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
-                  <YAxis tickFormatter={(v) => bytes(v, 0)} width={62} {...AXIS} />
-                  <Tooltip
-                    labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
-                    formatter={(v) => rate(Number(v))}
-                    contentStyle={{ fontSize: 12 }}
-                  />
-                  <Line dataKey="net_rx" name="下行" stroke="var(--color-ok)" strokeWidth={1.5} dot={false} />
-                  <Line dataKey="net_tx" name="上行" stroke="var(--color-chart-1)" strokeWidth={1.5} dot={false} />
+                  {pingSeries.map((s, i) => (
+                    <Line
+                      key={s.task.id}
+                      data={s.points}
+                      dataKey="latency"
+                      name={s.task.name}
+                      stroke={`var(--color-chart-${(i % 5) + 1})`}
+                      strokeWidth={1.5}
+                      dot={false}
+                    />
+                  ))}
                 </LineChart>
               </ResponsiveContainer>
             </Panel>
-
-            {pingSeries.length > 0 && (
-              <Panel title="延迟监控 (TCP)">
-                <ResponsiveContainer>
-                  <LineChart>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                    <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} tickFormatter={clock} {...AXIS} minTickGap={40} />
-                    <YAxis unit="ms" width={48} {...AXIS} />
-                    <Tooltip
-                      labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
-                      formatter={(v) => `${Number(v)} ms`}
-                      contentStyle={{ fontSize: 12 }}
-                    />
-                    {pingSeries.map((s, i) => (
-                      <Line
-                        key={s.task.id}
-                        data={s.points}
-                        dataKey="latency"
-                        name={s.task.name}
-                        stroke={`var(--color-chart-${(i % 5) + 1})`}
-                        strokeWidth={1.5}
-                        dot={false}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </Panel>
-            )}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

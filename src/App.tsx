@@ -10,6 +10,30 @@ import { api, useNodes, type Node, type PingTask } from "@/lib/api"
 
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
 
+/// `/node/{id}` is a real page: it survives a reload, can be linked to, and the
+/// back button leaves the detail view instead of the site. The hub serves
+/// index.html for any unknown path, so no server-side route is needed.
+function useNodeRoute() {
+  const read = () => {
+    const match = location.pathname.match(/^\/node\/(\d+)/)
+    return match ? Number(match[1]) : null
+  }
+  const [id, setId] = useState(read)
+  useEffect(() => {
+    const sync = () => setId(read())
+    addEventListener("popstate", sync)
+    return () => removeEventListener("popstate", sync)
+  }, [])
+  return [
+    id,
+    (next: number | null) => {
+      history.pushState({}, "", next === null ? "/" : `/node/${next}`)
+      setId(next)
+      scrollTo(0, 0)
+    },
+  ] as const
+}
+
 function useTheme() {
   const [dark, setDark] = useState(() => {
     const saved = localStorage.getItem("theme")
@@ -26,7 +50,7 @@ export default function App() {
   const [dark, toggleTheme] = useTheme()
   const [me, setMe] = useState<Me | null>(null)
   const { nodes, admin, error } = useNodes()
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, go] = useNodeRoute()
   const [tasks, setTasks] = useState<PingTask[]>([])
 
   useEffect(() => {
@@ -73,7 +97,17 @@ export default function App() {
       <main className="mx-auto max-w-6xl space-y-5 px-4 py-6">
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        {!nodes ? (
+        {open !== null ? (
+          !nodes ? (
+            <Skeleton className="h-96" />
+          ) : selected ? (
+            <NodeDetail node={selected} tasks={tasks} onBack={() => go(null)} />
+          ) : (
+            <p className="py-16 text-center text-sm text-muted-foreground">
+              节点不存在或未公开。<button className="underline" onClick={() => go(null)}>返回列表</button>
+            </p>
+          )
+        ) : !nodes ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[0, 1, 2].map((i) => (
               <Skeleton key={i} className="h-72" />
@@ -87,15 +121,13 @@ export default function App() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {sorted.map((n: Node) => (
-                  <NodeCard key={n.id} node={n} onOpen={() => setOpen(n.id)} />
+                  <NodeCard key={n.id} node={n} onOpen={() => go(n.id)} />
                 ))}
               </div>
             )}
           </>
         )}
       </main>
-
-      {selected && <NodeDetail node={selected} tasks={tasks} onClose={() => setOpen(null)} />}
     </div>
   )
 }
