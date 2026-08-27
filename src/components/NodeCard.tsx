@@ -22,13 +22,6 @@ export function monthUsage(node: Node): number {
   }
 }
 
-export const TRAFFIC_MODES: Record<string, string> = {
-  sum: "上下行相加",
-  max: "取较大值",
-  up: "仅上行",
-  down: "仅下行",
-}
-
 /// Online state where the price used to sit: the dot plus how long the machine
 /// has been up, which is what anyone looking at a status page wants first.
 export function Status({ node }: { node: Node }) {

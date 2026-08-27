@@ -79,7 +79,11 @@ export default function App() {
     <div className="min-h-svh">
       <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-          <span className="font-semibold">{me.site_name || "Monitor"}</span>
+          {/* The site name is the way back to the list, so a node page needs
+              no back button of its own. */}
+          <button className="font-semibold transition-opacity hover:opacity-70" onClick={() => go(null)}>
+            {me.site_name || "Monitor"}
+          </button>
           <div className="flex-1" />
           {/* The admin panel is a separate app built into the hub, not part of
               this theme, so this is a real navigation rather than a route. */}
@@ -101,7 +105,7 @@ export default function App() {
           !nodes ? (
             <Skeleton className="h-96" />
           ) : selected ? (
-            <NodeDetail node={selected} tasks={tasks} onBack={() => go(null)} />
+            <NodeDetail node={selected} tasks={tasks} />
           ) : (
             <p className="py-16 text-center text-sm text-muted-foreground">
               节点不存在或未公开。<button className="underline" onClick={() => go(null)}>返回列表</button>

@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react"
-import { ArrowLeft } from "lucide-react"
 import { median } from "d3-array"
 import {
-  Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, Brush, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip,
+  XAxis, YAxis,
 } from "recharts"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Status, TRAFFIC_MODES, trafficFoot } from "@/components/NodeCard"
+import { Status, trafficFoot } from "@/components/NodeCard"
 import { api, type Node, type PingTask } from "@/lib/api"
 import { bytes, clock, CYCLES, money, rate, uptime } from "@/lib/format"
 
@@ -32,6 +31,16 @@ const RANGES = [
 ]
 
 const AXIS = { stroke: "currentColor", fontSize: 11, tickLine: false, axisLine: false }
+
+/// The palette is greyscale, so lightness alone runs out after two or three
+/// series; the dash pattern carries the rest of the difference.
+const SERIES = [
+  { stroke: "var(--color-chart-1)", dash: undefined },
+  { stroke: "var(--color-chart-3)", dash: "6 3" },
+  { stroke: "var(--color-chart-2)", dash: "2 3" },
+  { stroke: "var(--color-chart-4)", dash: "10 4 2 4" },
+  { stroke: "var(--color-chart-5)", dash: "1 4" },
+]
 
 const TABS = [
   { key: "resources", label: "资源" },
@@ -93,9 +102,12 @@ function Fact({ label, value }: { label: string; value?: string | number | null 
   )
 }
 
-export function NodeDetail({ node, tasks, onBack }: { node: Node; tasks: PingTask[]; onBack: () => void }) {
-  const [hours, setHours] = useState(6)
+export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("resources")
+  // Each tab keeps its own range: a 7-day latency trend and a 1-hour CPU trace
+  // are different questions, and switching tabs should not reset either.
+  const [ranges, setRanges] = useState({ resources: 6, latency: 6 })
+  const hours = ranges[tab]
   const [smooth, setSmooth] = useState(false)
   const [data, setData] = useState<{ metrics: Point[]; ping: PingPoint[] } | null>(null)
 
@@ -118,12 +130,24 @@ export function NodeDetail({ node, tasks, onBack }: { node: Node; tasks: PingTas
     }))
     .filter((s) => s.points.length > 0)
 
+  // Brush works off the chart's own data, and probes that run on different
+  // intervals rarely share a timestamp, so the rows are sparse and the lines
+  // connect across the gaps.
+  const pingRows = (() => {
+    const rows = new Map<number, Record<string, number>>()
+    for (const s of pingSeries) {
+      for (const p of smooth ? despike(s.points) : s.points) {
+        const row = rows.get(p.ts) ?? { ts: p.ts }
+        row[`t${s.id}`] = p.latency
+        rows.set(p.ts, row)
+      }
+    }
+    return [...rows.values()].sort((a, b) => a.ts - b.ts)
+  })()
+
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft /> 返回
-        </Button>
         <h2 className="truncate text-lg font-medium">{node.name}</h2>
         <Status node={node} />
         {node.agent_version && (
@@ -149,13 +173,9 @@ export function NodeDetail({ node, tasks, onBack }: { node: Node; tasks: PingTas
         <Fact label="到期" value={node.expires_at} />
         <Fact label="连接数" value={m ? `TCP ${m.tcp} · UDP ${m.udp}` : null} />
         <Fact label="进程" value={m?.procs} />
-        <Fact label="本月流量" value={trafficFoot(node)} />
         <Fact label="今日流量" value={`↓ ${bytes(node.day_rx)} · ↑ ${bytes(node.day_tx)}`} />
+        <Fact label="本月流量" value={trafficFoot(node)} />
         <Fact label="累计流量" value={`↓ ${bytes(node.total_rx)} · ↑ ${bytes(node.total_tx)}`} />
-        <Fact
-          label="流量周期"
-          value={`每月 ${node.traffic_reset_day} 日重置 · ${TRAFFIC_MODES[node.traffic_mode] ?? node.traffic_mode}`}
-        />
       </dl>
 
       {node.remark && (
@@ -172,7 +192,11 @@ export function NodeDetail({ node, tasks, onBack }: { node: Node; tasks: PingTas
         </div>
         <div className="flex gap-1">
           {RANGES.map((r) => (
-            <Tab key={r.hours} active={hours === r.hours} onClick={() => setHours(r.hours)}>
+            <Tab
+              key={r.hours}
+              active={hours === r.hours}
+              onClick={() => setRanges((all) => ({ ...all, [tab]: r.hours }))}
+            >
               {r.label}
             </Tab>
           ))}
@@ -198,16 +222,9 @@ export function NodeDetail({ node, tasks, onBack }: { node: Node; tasks: PingTas
         ) : (
           <Panel title={`延迟监控 (TCP)${smooth ? " · 已削峰" : ""}`} tall>
             <ResponsiveContainer>
-              <LineChart>
+              <LineChart data={pingRows}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                <XAxis
-                  dataKey="ts"
-                  type="number"
-                  domain={["dataMin", "dataMax"]}
-                  tickFormatter={clock}
-                  {...AXIS}
-                  minTickGap={40}
-                />
+                <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
                 <YAxis unit="ms" width={48} {...AXIS} />
                 <Tooltip
                   labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
@@ -218,14 +235,24 @@ export function NodeDetail({ node, tasks, onBack }: { node: Node; tasks: PingTas
                 {pingSeries.map((s, i) => (
                   <Line
                     key={s.id}
-                    data={smooth ? despike(s.points) : s.points}
-                    dataKey="latency"
+                    dataKey={`t${s.id}`}
                     name={s.name}
-                    stroke={`var(--color-chart-${(i % 5) + 1})`}
+                    stroke={SERIES[i % SERIES.length].stroke}
+                    strokeDasharray={SERIES[i % SERIES.length].dash}
                     strokeWidth={1.5}
                     dot={false}
+                    connectNulls
                   />
                 ))}
+                {/* Drag either handle to zoom into a stretch of the trend. */}
+                <Brush
+                  dataKey="ts"
+                  height={22}
+                  travellerWidth={8}
+                  tickFormatter={clock}
+                  className="fill-muted"
+                  stroke="var(--color-muted-foreground)"
+                />
               </LineChart>
             </ResponsiveContainer>
           </Panel>
