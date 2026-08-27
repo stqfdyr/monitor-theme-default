@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react"
 import { median } from "d3-array"
 import {
-  Area, AreaChart, Brush, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip,
-  XAxis, YAxis,
+  Area, AreaChart, Brush, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts"
 
 import { Badge } from "@/components/ui/badge"
@@ -51,7 +50,8 @@ function Panel({ title, tall, children }: { title: string; tall?: boolean; child
   return (
     <div>
       <h4 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h4>
-      <div className={`${tall ? "h-72" : "h-40"} w-full text-muted-foreground`}>{children}</div>
+      {/* The latency tab holds one chart, so it takes the viewport with it. */}
+      <div className={`${tall ? "h-[60vh] min-h-80" : "h-40"} w-full text-muted-foreground`}>{children}</div>
     </div>
   )
 }
@@ -109,6 +109,9 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
   const [ranges, setRanges] = useState({ resources: 6, latency: 6 })
   const hours = ranges[tab]
   const [smooth, setSmooth] = useState(false)
+  // Probes people have switched off. Hiding the slow one is what makes the
+  // fast ones readable: the axis rescales to whatever is left on screen.
+  const [hiddenProbes, setHiddenProbes] = useState<number[]>([])
   const [data, setData] = useState<{ metrics: Point[]; ping: PingPoint[] } | null>(null)
 
   useEffect(() => {
@@ -130,12 +133,17 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
     }))
     .filter((s) => s.points.length > 0)
 
+  const shownProbes = pingSeries.filter((s) => !hiddenProbes.includes(s.id))
+  // Keyed off the full list, so a line keeps its shade when others are hidden.
+  const style = (id: number) => SERIES[pingSeries.findIndex((p) => p.id === id) % SERIES.length]
+
   // Brush works off the chart's own data, and probes that run on different
   // intervals rarely share a timestamp, so the rows are sparse and the lines
-  // connect across the gaps.
+  // connect across the gaps. Only what is on screen goes in, so the axis and
+  // the brush both follow the selection.
   const pingRows = (() => {
     const rows = new Map<number, Record<string, number>>()
-    for (const s of pingSeries) {
+    for (const s of shownProbes) {
       for (const p of smooth ? despike(s.points) : s.points) {
         const row = rows.get(p.ts) ?? { ts: p.ts }
         row[`t${s.id}`] = p.latency
@@ -164,7 +172,6 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
         <Fact label="架构" value={`${node.arch}${node.virt && node.virt !== "none" ? ` · ${node.virt}` : ""}`} />
         <Fact label="CPU" value={node.cpu_name ? `${node.cpu_name} × ${node.cpu_cores}` : null} />
         <Fact label="内存 / 硬盘" value={`${bytes(node.mem_total)} / ${bytes(node.disk_total)}`} />
-        <Fact label="IP" value={node.ip} />
         <Fact label="运行时间" value={m ? uptime(m.uptime) : null} />
         <Fact
           label="价格"
@@ -182,7 +189,7 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
         <p className="rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap">{node.remark}</p>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4">
+      <div className="space-y-2 border-t pt-4">
         <div className="flex gap-1">
           {TABS.map((t) => (
             <Tab key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
@@ -190,27 +197,67 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
             </Tab>
           ))}
         </div>
-        <div className="flex gap-1">
-          {RANGES.map((r) => (
-            <Tab
-              key={r.hours}
-              active={hours === r.hours}
-              onClick={() => setRanges((all) => ({ ...all, [tab]: r.hours }))}
-            >
-              {r.label}
-            </Tab>
-          ))}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex gap-1">
+            {RANGES.map((r) => (
+              <Tab
+                key={r.hours}
+                active={hours === r.hours}
+                onClick={() => setRanges((all) => ({ ...all, [tab]: r.hours }))}
+              >
+                {r.label}
+              </Tab>
+            ))}
+          </div>
+          {tab === "latency" && (
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={smooth}
+                onChange={(e) => setSmooth(e.target.checked)}
+                className="accent-foreground"
+              />
+              削峰
+            </label>
+          )}
         </div>
-        {tab === "latency" && (
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={smooth}
-              onChange={(e) => setSmooth(e.target.checked)}
-              className="accent-foreground"
-            />
-            削峰
-          </label>
+        {tab === "latency" && pingSeries.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Tab active={false} onClick={() => setHiddenProbes([])}>
+              全选
+            </Tab>
+            <Tab active={false} onClick={() => setHiddenProbes(pingSeries.map((s) => s.id))}>
+              全不选
+            </Tab>
+            {pingSeries.map((s) => {
+              const shown = !hiddenProbes.includes(s.id)
+              return (
+                <button
+                  key={s.id}
+                  onClick={() =>
+                    setHiddenProbes((h) => (shown ? [...h, s.id] : h.filter((id) => id !== s.id)))
+                  }
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-opacity ${
+                    shown ? "" : "opacity-40"
+                  }`}
+                >
+                  {/* The swatch carries the same shade and dash as the line. */}
+                  <svg width="14" height="6" aria-hidden>
+                    <line
+                      x1="0"
+                      y1="3"
+                      x2="14"
+                      y2="3"
+                      stroke={style(s.id).stroke}
+                      strokeDasharray={style(s.id).dash}
+                      strokeWidth="2"
+                    />
+                  </svg>
+                  {s.name}
+                </button>
+              )
+            })}
+          </div>
         )}
       </div>
 
@@ -219,26 +266,29 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
       ) : tab === "latency" ? (
         pingSeries.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有延迟数据</p>
+        ) : shownProbes.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">没有选中任何探测</p>
         ) : (
           <Panel title={`延迟监控 (TCP)${smooth ? " · 已削峰" : ""}`} tall>
             <ResponsiveContainer>
               <LineChart data={pingRows}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                 <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
-                <YAxis unit="ms" width={48} {...AXIS} />
+                {/* Not anchored at zero: these lines live in a narrow band far
+                    from it, and starting at zero flattens every wobble. */}
+                <YAxis unit="ms" width={52} domain={["auto", "auto"]} {...AXIS} />
                 <Tooltip
                   labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
                   formatter={(v) => `${Number(v)} ms`}
                   contentStyle={{ fontSize: 12 }}
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                {pingSeries.map((s, i) => (
+                {shownProbes.map((s) => (
                   <Line
                     key={s.id}
                     dataKey={`t${s.id}`}
                     name={s.name}
-                    stroke={SERIES[i % SERIES.length].stroke}
-                    strokeDasharray={SERIES[i % SERIES.length].dash}
+                    stroke={style(s.id).stroke}
+                    strokeDasharray={style(s.id).dash}
                     strokeWidth={1.5}
                     dot={false}
                     connectNulls
