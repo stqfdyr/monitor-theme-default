@@ -64,7 +64,17 @@ function Spark({ series, scale }: { series: { values: number[]; className: strin
   )
 }
 
-type Sample = { cpu: number; rx: number; tx: number }
+type Sample = { rx: number; tx: number }
+
+/// A word instead of a second chart: the percentage above already says how
+/// much, so the line under it should say whether that is fine.
+function pressure(cpu: number, online: number) {
+  if (!online) return "无在线节点"
+  if (cpu < 25) return "轻松"
+  if (cpu < 60) return "正常"
+  if (cpu < 85) return "压力"
+  return "满载"
+}
 
 /** Samples on its own clock, so it does not re-run on every parent render. */
 function useHistory(current: Sample) {
@@ -89,11 +99,8 @@ export function Summary({ nodes }: { nodes: Node[] }) {
 
   // The figures come straight from the latest push; the samples only feed the
   // sparklines, so a number never lags its own chart.
-  const now = {
-    cpu: live.length ? live.reduce((s, m) => s + m.cpu, 0) / live.length : 0,
-    rx: live.reduce((s, m) => s + m.net_rx, 0),
-    tx: live.reduce((s, m) => s + m.net_tx, 0),
-  }
+  const cpu = live.length ? live.reduce((s, m) => s + m.cpu, 0) / live.length : 0
+  const now = { rx: live.reduce((s, m) => s + m.net_rx, 0), tx: live.reduce((s, m) => s + m.net_tx, 0) }
   const history = useHistory(now)
 
   return (
@@ -108,9 +115,9 @@ export function Summary({ nodes }: { nodes: Node[] }) {
       </Tile>
 
       <Tile icon={Activity} label="平均 CPU">
-        <div className="tnum mt-1 text-xl font-semibold">{now.cpu.toFixed(1)}%</div>
-        <div className="mt-auto pt-1">
-          <Spark series={[{ values: history.map((s) => s.cpu), className: "text-foreground" }]} />
+        <div className="tnum mt-1 text-xl font-semibold">{cpu.toFixed(1)}%</div>
+        <div className={cn("mt-auto pt-1 text-xs", cpu >= 85 ? "font-medium text-foreground" : "text-muted-foreground")}>
+          {pressure(cpu, live.length)}
         </div>
       </Tile>
 

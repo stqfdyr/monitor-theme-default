@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft } from "lucide-react"
+import { median } from "d3-array"
 import {
-  Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Meter } from "@/components/Meter"
-import { monthUsage, Status, TRAFFIC_MODES, trafficFoot } from "@/components/NodeCard"
+import { Status, TRAFFIC_MODES, trafficFoot } from "@/components/NodeCard"
 import { api, type Node, type PingTask } from "@/lib/api"
-import { bytes, clock, CYCLES, money, percent, rate, uptime } from "@/lib/format"
+import { bytes, clock, CYCLES, money, rate, uptime } from "@/lib/format"
 
 type Point = {
   ts: number
@@ -33,13 +33,54 @@ const RANGES = [
 
 const AXIS = { stroke: "currentColor", fontSize: 11, tickLine: false, axisLine: false }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+const TABS = [
+  { key: "resources", label: "资源" },
+  { key: "latency", label: "网络延迟" },
+] as const
+
+function Panel({ title, tall, children }: { title: string; tall?: boolean; children: React.ReactNode }) {
   return (
     <div>
       <h4 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h4>
-      <div className="h-40 w-full text-muted-foreground">{children}</div>
+      <div className={`${tall ? "h-72" : "h-40"} w-full text-muted-foreground`}>{children}</div>
     </div>
   )
+}
+
+function Tab({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
+        active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
+ * Hampel filter, the standard identifier for impulse noise in a time series
+ * (Hampel 1974; the same thing MATLAB ships as `hampel`). A point more than
+ * `sigmas` robust deviations from its window's median is an outlier and gets
+ * replaced by that median — everything else is passed through untouched, which
+ * is what separates it from a plain rolling median or a moving average.
+ *
+ * 1.4826 rescales the median absolute deviation into a standard deviation for
+ * normally distributed data; 3 sigma is the usual cut.
+ */
+function despike(points: PingPoint[], window = 7, sigmas = 3): PingPoint[] {
+  const half = window >> 1
+  // ponytail: recomputes the window per point. A few thousand samples is
+  // nothing; swap in a rolling structure if a chart ever needs 100k.
+  return points.map((p, i) => {
+    const near = points.slice(Math.max(0, i - half), i + half + 1).map((x) => x.latency)
+    const mid = median(near) ?? p.latency
+    const mad = median(near.map((v) => Math.abs(v - mid))) ?? 0
+    const outlier = mad > 0 && Math.abs(p.latency - mid) > sigmas * 1.4826 * mad
+    return outlier ? { ...p, latency: mid } : p
+  })
 }
 
 function Fact({ label, value }: { label: string; value?: string | number | null }) {
@@ -54,6 +95,8 @@ function Fact({ label, value }: { label: string; value?: string | number | null 
 
 export function NodeDetail({ node, tasks, onBack }: { node: Node; tasks: PingTask[]; onBack: () => void }) {
   const [hours, setHours] = useState(6)
+  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("resources")
+  const [smooth, setSmooth] = useState(false)
   const [data, setData] = useState<{ metrics: Point[]; ping: PingPoint[] } | null>(null)
 
   useEffect(() => {
@@ -64,12 +107,14 @@ export function NodeDetail({ node, tasks, onBack }: { node: Node; tasks: PingTas
   }, [node.id, hours])
 
   const m = node.metrics
-  // One series per probe, so several targets can share a single chart.
-  const pingSeries = tasks
-    .filter((t) => t.nodes.includes(node.id))
-    .map((task) => ({
-      task,
-      points: (data?.ping ?? []).filter((p) => p.task_id === task.id && p.latency >= 0),
+  // One series per probe that actually reported. Grouping by what came back
+  // rather than by the task list means visitors see the chart too — only an
+  // admin can read task names, and an id is a good enough label without one.
+  const pingSeries = [...new Set((data?.ping ?? []).map((p) => p.task_id))]
+    .map((id) => ({
+      id,
+      name: tasks.find((t) => t.id === id)?.name ?? `探测 ${id}`,
+      points: (data?.ping ?? []).filter((p) => p.task_id === id && p.latency >= 0),
     }))
     .filter((s) => s.points.length > 0)
 
@@ -104,48 +149,87 @@ export function NodeDetail({ node, tasks, onBack }: { node: Node; tasks: PingTas
         <Fact label="到期" value={node.expires_at} />
         <Fact label="连接数" value={m ? `TCP ${m.tcp} · UDP ${m.udp}` : null} />
         <Fact label="进程" value={m?.procs} />
+        <Fact label="本月流量" value={trafficFoot(node)} />
+        <Fact label="今日流量" value={`↓ ${bytes(node.day_rx)} · ↑ ${bytes(node.day_tx)}`} />
+        <Fact label="累计流量" value={`↓ ${bytes(node.total_rx)} · ↑ ${bytes(node.total_tx)}`} />
+        <Fact
+          label="流量周期"
+          value={`每月 ${node.traffic_reset_day} 日重置 · ${TRAFFIC_MODES[node.traffic_mode] ?? node.traffic_mode}`}
+        />
       </dl>
 
       {node.remark && (
         <p className="rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap">{node.remark}</p>
       )}
 
-      <div className="space-y-3 rounded-lg border p-4">
-        <Meter
-          label="本月流量"
-          pct={node.traffic_limit > 0 ? percent(monthUsage(node), node.traffic_limit) : null}
-          foot={trafficFoot(node)}
-        />
-        <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-xs sm:grid-cols-4">
-          <span className="tnum">入站实时 {m ? rate(m.net_rx) : "—"}</span>
-          <span className="tnum">出站实时 {m ? rate(m.net_tx) : "—"}</span>
-          <span className="tnum text-muted-foreground">入站总计 {bytes(node.total_rx)}</span>
-          <span className="tnum text-muted-foreground">出站总计 {bytes(node.total_tx)}</span>
-          <span className="tnum text-muted-foreground">本月入站 {bytes(node.month_rx)}</span>
-          <span className="tnum text-muted-foreground">本月出站 {bytes(node.month_tx)}</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4">
+        <div className="flex gap-1">
+          {TABS.map((t) => (
+            <Tab key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
+              {t.label}
+            </Tab>
+          ))}
         </div>
-        <p className="text-xs text-muted-foreground">
-          周期自 {node.month_start || "—"} 起 · 每月 {node.traffic_reset_day} 日重置 ·{" "}
-          {TRAFFIC_MODES[node.traffic_mode] ?? node.traffic_mode}
-        </p>
-      </div>
-
-      <div className="flex gap-1">
-        {RANGES.map((r) => (
-          <button
-            key={r.hours}
-            onClick={() => setHours(r.hours)}
-            className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
-              hours === r.hours ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            {r.label}
-          </button>
-        ))}
+        <div className="flex gap-1">
+          {RANGES.map((r) => (
+            <Tab key={r.hours} active={hours === r.hours} onClick={() => setHours(r.hours)}>
+              {r.label}
+            </Tab>
+          ))}
+        </div>
+        {tab === "latency" && (
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={smooth}
+              onChange={(e) => setSmooth(e.target.checked)}
+              className="accent-foreground"
+            />
+            削峰
+          </label>
+        )}
       </div>
 
       {!data ? (
         <Skeleton className="h-40 w-full" />
+      ) : tab === "latency" ? (
+        pingSeries.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有延迟数据</p>
+        ) : (
+          <Panel title={`延迟监控 (TCP)${smooth ? " · 已削峰" : ""}`} tall>
+            <ResponsiveContainer>
+              <LineChart>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                <XAxis
+                  dataKey="ts"
+                  type="number"
+                  domain={["dataMin", "dataMax"]}
+                  tickFormatter={clock}
+                  {...AXIS}
+                  minTickGap={40}
+                />
+                <YAxis unit="ms" width={48} {...AXIS} />
+                <Tooltip
+                  labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
+                  formatter={(v) => `${Number(v)} ms`}
+                  contentStyle={{ fontSize: 12 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {pingSeries.map((s, i) => (
+                  <Line
+                    key={s.id}
+                    data={smooth ? despike(s.points) : s.points}
+                    dataKey="latency"
+                    name={s.name}
+                    stroke={`var(--color-chart-${(i % 5) + 1})`}
+                    strokeWidth={1.5}
+                    dot={false}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </Panel>
+        )
       ) : data.metrics.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">这段时间还没有历史数据</p>
       ) : (
@@ -200,33 +284,6 @@ export function NodeDetail({ node, tasks, onBack }: { node: Node; tasks: PingTas
             </ResponsiveContainer>
           </Panel>
 
-          {pingSeries.length > 0 && (
-            <Panel title="延迟监控 (TCP)">
-              <ResponsiveContainer>
-                <LineChart>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                  <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} tickFormatter={clock} {...AXIS} minTickGap={40} />
-                  <YAxis unit="ms" width={48} {...AXIS} />
-                  <Tooltip
-                    labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
-                    formatter={(v) => `${Number(v)} ms`}
-                    contentStyle={{ fontSize: 12 }}
-                  />
-                  {pingSeries.map((s, i) => (
-                    <Line
-                      key={s.task.id}
-                      data={s.points}
-                      dataKey="latency"
-                      name={s.task.name}
-                      stroke={`var(--color-chart-${(i % 5) + 1})`}
-                      strokeWidth={1.5}
-                      dot={false}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </Panel>
-          )}
         </div>
       )}
     </div>
