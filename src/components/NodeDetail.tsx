@@ -268,7 +268,7 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
                 parent's height, and inside a min-height flex chain that first
                 read can come back 0 — which draws nothing at all. Viewport
                 minus what sits above it, so the chart still ends at the fold. */}
-            <div className="h-[calc(100svh-25rem)] min-h-80 w-full text-muted-foreground">
+            <div className="h-[calc(100svh-26rem)] min-h-72 w-full text-muted-foreground">
               {shownProbes.length === 0 ? (
                 <p className="py-8 text-center text-sm">没有选中任何探测</p>
               ) : (

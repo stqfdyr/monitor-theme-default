@@ -98,7 +98,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-5 px-4 py-6">
+      <main className="mx-auto max-w-6xl space-y-5 px-4 py-4">
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         {open !== null ? (
