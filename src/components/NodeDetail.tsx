@@ -220,6 +220,38 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
             </label>
           )}
         </div>
+        {tab === "latency" && pingSeries.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {pingSeries.map((s) => {
+              const shown = !hiddenProbes.includes(s.id)
+              return (
+                <button
+                  key={s.id}
+                  onClick={() =>
+                    setHiddenProbes((h) => (shown ? [...h, s.id] : h.filter((id) => id !== s.id)))
+                  }
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-opacity ${
+                    shown ? "" : "opacity-40"
+                  }`}
+                >
+                  {/* The swatch carries the same shade and dash as the line. */}
+                  <svg width="14" height="6" className="shrink-0" aria-hidden>
+                    <line
+                      x1="0"
+                      y1="3"
+                      x2="14"
+                      y2="3"
+                      stroke={style(s.id).stroke}
+                      strokeDasharray={style(s.id).dash}
+                      strokeWidth="2"
+                    />
+                  </svg>
+                  {s.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {!data ? (
@@ -228,91 +260,46 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
         pingSeries.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有延迟数据</p>
         ) : (
-          <div className="flex flex-col gap-3 sm:flex-row">
-            {/* One chart in this tab, so it takes the viewport with it. */}
-            <div className="h-[60vh] min-h-80 min-w-0 flex-1 text-muted-foreground">
-              {shownProbes.length === 0 ? (
-                <p className="py-8 text-center text-sm">没有选中任何探测</p>
-              ) : (
-                <ResponsiveContainer>
-                  <LineChart data={pingRows}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                    <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
-                    {/* Not anchored at zero: these lines live in a narrow band far
-                        from it, and starting at zero flattens every wobble. */}
-                    <YAxis unit="ms" width={52} domain={["auto", "auto"]} {...AXIS} />
-                    <Tooltip
-                      labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
-                      formatter={(v) => `${Number(v)} ms`}
-                      contentStyle={{ fontSize: 12 }}
+          <div className="h-[60vh] min-h-80 w-full text-muted-foreground">
+            {shownProbes.length === 0 ? (
+              <p className="py-8 text-center text-sm">没有选中任何探测</p>
+            ) : (
+              <ResponsiveContainer>
+                <LineChart data={pingRows}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                  <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
+                  {/* Not anchored at zero: these lines live in a narrow band far
+                      from it, and starting at zero flattens every wobble. */}
+                  <YAxis unit="ms" width={52} domain={["auto", "auto"]} {...AXIS} />
+                  <Tooltip
+                    labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
+                    formatter={(v) => `${Number(v)} ms`}
+                    contentStyle={{ fontSize: 12 }}
+                  />
+                  {shownProbes.map((s) => (
+                    <Line
+                      key={s.id}
+                      dataKey={`t${s.id}`}
+                      name={s.name}
+                      stroke={style(s.id).stroke}
+                      strokeDasharray={style(s.id).dash}
+                      strokeWidth={1.5}
+                      dot={false}
+                      connectNulls
                     />
-                    {shownProbes.map((s) => (
-                      <Line
-                        key={s.id}
-                        dataKey={`t${s.id}`}
-                        name={s.name}
-                        stroke={style(s.id).stroke}
-                        strokeDasharray={style(s.id).dash}
-                        strokeWidth={1.5}
-                        dot={false}
-                        connectNulls
-                      />
-                    ))}
-                    {/* Drag either handle to zoom into a stretch of the trend. */}
-                    <Brush
-                      dataKey="ts"
-                      height={22}
-                      travellerWidth={8}
-                      tickFormatter={clock}
-                      className="fill-muted"
-                      stroke="var(--color-muted-foreground)"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            {/* The legend is the switch: it sits beside the chart it filters
-                rather than adding a third row of controls above it. */}
-            <div className="flex flex-wrap items-start gap-1.5 sm:w-40 sm:shrink-0 sm:flex-col">
-              <div className="flex gap-1">
-                <Tab active={false} onClick={() => setHiddenProbes([])}>
-                  全选
-                </Tab>
-                <Tab active={false} onClick={() => setHiddenProbes(pingSeries.map((s) => s.id))}>
-                  全不选
-                </Tab>
-              </div>
-              {pingSeries.map((s) => {
-                const shown = !hiddenProbes.includes(s.id)
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() =>
-                      setHiddenProbes((h) => (shown ? [...h, s.id] : h.filter((id) => id !== s.id)))
-                    }
-                    title={s.name}
-                    className={`inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-opacity ${
-                      shown ? "" : "opacity-40"
-                    }`}
-                  >
-                    {/* The swatch carries the same shade and dash as the line. */}
-                    <svg width="14" height="6" className="shrink-0" aria-hidden>
-                      <line
-                        x1="0"
-                        y1="3"
-                        x2="14"
-                        y2="3"
-                        stroke={style(s.id).stroke}
-                        strokeDasharray={style(s.id).dash}
-                        strokeWidth="2"
-                      />
-                    </svg>
-                    <span className="truncate">{s.name}</span>
-                  </button>
-                )
-              })}
-            </div>
+                  ))}
+                  {/* Drag either handle to zoom into a stretch of the trend. */}
+                  <Brush
+                    dataKey="ts"
+                    height={22}
+                    travellerWidth={8}
+                    tickFormatter={clock}
+                    className="fill-muted"
+                    stroke="var(--color-muted-foreground)"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
         )
       ) : data.metrics.length === 0 ? (
