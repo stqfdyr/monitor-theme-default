@@ -220,38 +220,6 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
             </label>
           )}
         </div>
-        {tab === "latency" && pingSeries.length > 1 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {pingSeries.map((s) => {
-              const shown = !hiddenProbes.includes(s.id)
-              return (
-                <button
-                  key={s.id}
-                  onClick={() =>
-                    setHiddenProbes((h) => (shown ? [...h, s.id] : h.filter((id) => id !== s.id)))
-                  }
-                  className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-opacity ${
-                    shown ? "" : "opacity-40"
-                  }`}
-                >
-                  {/* The swatch carries the same shade and dash as the line. */}
-                  <svg width="14" height="6" className="shrink-0" aria-hidden>
-                    <line
-                      x1="0"
-                      y1="3"
-                      x2="14"
-                      y2="3"
-                      stroke={style(s.id).stroke}
-                      strokeDasharray={style(s.id).dash}
-                      strokeWidth="2"
-                    />
-                  </svg>
-                  {s.name}
-                </button>
-              )
-            })}
-          </div>
-        )}
       </div>
 
       {!data ? (
@@ -260,45 +228,84 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
         pingSeries.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有延迟数据</p>
         ) : (
-          <div className="h-[60vh] min-h-80 w-full text-muted-foreground">
-            {shownProbes.length === 0 ? (
-              <p className="py-8 text-center text-sm">没有选中任何探测</p>
-            ) : (
-              <ResponsiveContainer>
-                <LineChart data={pingRows}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                  <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
-                  {/* Not anchored at zero: these lines live in a narrow band far
-                      from it, and starting at zero flattens every wobble. */}
-                  <YAxis unit="ms" width={52} domain={["auto", "auto"]} {...AXIS} />
-                  <Tooltip
-                    labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
-                    formatter={(v) => `${Number(v)} ms`}
-                    contentStyle={{ fontSize: 12 }}
-                  />
-                  {shownProbes.map((s) => (
-                    <Line
-                      key={s.id}
-                      dataKey={`t${s.id}`}
-                      name={s.name}
-                      stroke={style(s.id).stroke}
-                      strokeDasharray={style(s.id).dash}
-                      strokeWidth={1.5}
-                      dot={false}
-                      connectNulls
+          <div className="space-y-3">
+            <div className="h-[60vh] min-h-80 w-full text-muted-foreground">
+              {shownProbes.length === 0 ? (
+                <p className="py-8 text-center text-sm">没有选中任何探测</p>
+              ) : (
+                <ResponsiveContainer>
+                  <LineChart data={pingRows}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                    <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
+                    {/* Not anchored at zero: these lines live in a narrow band far
+                        from it, and starting at zero flattens every wobble. */}
+                    <YAxis unit="ms" width={52} domain={["auto", "auto"]} {...AXIS} />
+                    <Tooltip
+                      labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
+                      formatter={(v) => `${Number(v)} ms`}
+                      contentStyle={{ fontSize: 12 }}
                     />
-                  ))}
-                  {/* Drag either handle to zoom into a stretch of the trend. */}
-                  <Brush
-                    dataKey="ts"
-                    height={22}
-                    travellerWidth={8}
-                    tickFormatter={clock}
-                    className="fill-muted"
-                    stroke="var(--color-muted-foreground)"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+                    {shownProbes.map((s) => (
+                      <Line
+                        key={s.id}
+                        dataKey={`t${s.id}`}
+                        name={s.name}
+                        stroke={style(s.id).stroke}
+                        strokeDasharray={style(s.id).dash}
+                        strokeWidth={1.5}
+                        dot={false}
+                        connectNulls
+                      />
+                    ))}
+                    {/* Drag either handle to zoom into a stretch of the trend. */}
+                    <Brush
+                      dataKey="ts"
+                      height={22}
+                      travellerWidth={8}
+                      tickFormatter={clock}
+                      className="fill-muted"
+                      stroke="var(--color-muted-foreground)"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Under the chart rather than above it: what the chart covers
+                is picked at the top, what is drawn in it is picked here.
+                Recharts paints the brush into the same SVG as the axis, so
+                this is as close beneath it as HTML can sit. */}
+            {pingSeries.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {pingSeries.map((s) => {
+                const shown = !hiddenProbes.includes(s.id)
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() =>
+                      setHiddenProbes((h) => (shown ? [...h, s.id] : h.filter((id) => id !== s.id)))
+                    }
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-opacity ${
+                      shown ? "" : "opacity-40"
+                    }`}
+                  >
+                    {/* The swatch carries the same shade and dash as the line. */}
+                    <svg width="14" height="6" className="shrink-0" aria-hidden>
+                      <line
+                        x1="0"
+                        y1="3"
+                        x2="14"
+                        y2="3"
+                        stroke={style(s.id).stroke}
+                        strokeDasharray={style(s.id).dash}
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    {s.name}
+                  </button>
+                )
+              })}
+            </div>
             )}
           </div>
         )
