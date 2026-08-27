@@ -172,11 +172,7 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
   }, [shownProbes, smooth])
 
   return (
-    // On the latency tab the page is exactly one viewport tall and the chart
-    // takes whatever the rest leaves it, so there is nothing to scroll to.
-    <div
-      className={`flex flex-col gap-4 ${tab === "latency" ? "min-h-[calc(100svh-7.5rem)]" : ""}`}
-    >
+    <div className="space-y-4">
       <div className="flex items-center gap-2">
         <h2 className="truncate text-lg font-medium">{node.name}</h2>
         <Status node={node} />
@@ -267,8 +263,12 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
         pingSeries.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有延迟数据</p>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
-            <div className="min-h-64 w-full flex-1 text-muted-foreground">
+          <div className="space-y-3">
+            {/* A measured height, not flex-1: ResponsiveContainer reads its
+                parent's height, and inside a min-height flex chain that first
+                read can come back 0 — which draws nothing at all. Viewport
+                minus what sits above it, so the chart still ends at the fold. */}
+            <div className="h-[calc(100svh-25rem)] min-h-80 w-full text-muted-foreground">
               {shownProbes.length === 0 ? (
                 <p className="py-8 text-center text-sm">没有选中任何探测</p>
               ) : (
