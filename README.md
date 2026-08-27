@@ -1,23 +1,25 @@
 # monitor-theme-default
 
-[monitor](https://github.com/stqfdyr/monitor) 的内置默认主题，也是开发第三方主题的参考实现。
+[monitor](https://github.com/stqfdyr/monitor) 的内置默认主题，同时作为第三方主题的参考实现。
+
+React + Vite + shadcn/ui，黑白配色。
 
 ## 开发
 
-先在本机启动 hub：
+启动一个 hub 实例：
 
 ```bash
 monitor-hub --listen 127.0.0.1:9911 --db /tmp/monitor.db --site http://127.0.0.1:9911
 ```
 
-再启动主题开发服务器；Vite 会把 `/api` 和 WebSocket 代理到 hub：
+启动开发服务器，Vite 将 `/api` 与 WebSocket 代理至 hub：
 
 ```bash
 npm ci
 npm run dev
 ```
 
-提交前运行 `npm run build && npm run lint`。构建产物在 `dist/`。
+构建产物位于 `dist/`。提交前运行 `npm run build && npm run lint`。
 
 ## 主题包
 
@@ -31,18 +33,18 @@ npm run dev
 └── preview.png        # 可选
 ```
 
-`theme.json` 包含这些字符串字段：
+`theme.json` 的字段均为字符串：
 
 | 字段 | 含义 |
 |---|---|
 | `name` | 显示名称 |
-| `short` | 唯一短名，只能使用字母、数字、`-`、`_`；`default` 保留给内置主题 |
+| `short` | 唯一短名，限字母、数字、`-`、`_`，`default` 为内置主题保留 |
 | `description` | 简介 |
 | `version` | 主题版本 |
 | `author` | 作者 |
 | `url` | 源码地址 |
 
-把整个目录复制到 hub 的 `--themes` 目录后，在后台「主题」页选择即可；不需要重启 hub。
+将目录复制到 hub 的 `--themes` 位置，在后台「主题」页切换，无需重启。
 
 ## 主题契约
 
@@ -54,11 +56,11 @@ npm run dev
 | `GET /api/nodes` | 节点列表、实时指标和累计流量 |
 | `GET /api/nodes/{id}/metrics?hours=N` | 历史指标和延迟记录 |
 | `GET /api/ws` | 每 2 秒推送一次节点快照的 WebSocket |
-| `GET /api/ping-tasks` | 延迟曲线名称；仅管理员可读，匿名访问会返回 401，主题必须容错 |
+| `GET /api/ping-tasks` | 延迟曲线名称，仅管理员可读，匿名访问返回 401 |
 
-匿名访问 `GET /api/nodes` 时只会得到 `public=1` 的节点，且响应中没有 `ip`、`hostname`、`remark`。字段的权威定义在 hub 的 `src/api.rs` 中。
+匿名访问 `GET /api/nodes` 仅返回 `public=1` 的节点，响应中不含 `ip`、`hostname`、`remark`。字段定义以 hub 的 `src/api.rs` 为准。
 
-未知前端路径会回落到主题自己的 `dist/index.html`，所以可以使用客户端路由。`/admin/*` 始终由 hub 内置后台接管，不属于主题契约。
+未知路径回落到主题的 `dist/index.html`，客户端路由可用。`/admin/*` 由 hub 内置后台接管，不属于主题契约。
 
 ## 许可
 
