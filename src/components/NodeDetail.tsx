@@ -6,10 +6,10 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import { monthUsage, TRAFFIC_MODES } from "@/components/NodeCard"
-import { TrafficRing } from "@/components/TrafficRing"
+import { Meter } from "@/components/Meter"
+import { monthUsage, Status, TRAFFIC_MODES, trafficFoot } from "@/components/NodeCard"
 import { api, type Node, type PingTask } from "@/lib/api"
-import { bytes, clock, CYCLES, money, rate, uptime } from "@/lib/format"
+import { bytes, clock, CYCLES, money, percent, rate, uptime } from "@/lib/format"
 
 type Point = {
   ts: number
@@ -77,8 +77,8 @@ export function NodeDetail({ node, tasks, onClose }: { node: Node; tasks: PingTa
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className={node.online ? "size-2 rounded-full bg-ok" : "size-2 rounded-full bg-muted-foreground/40"} />
             {node.name}
+            <Status node={node} />
             {node.agent_version && (
               <Badge variant="outline" className="font-normal">
                 agent {node.agent_version}
@@ -109,20 +109,24 @@ export function NodeDetail({ node, tasks, onClose }: { node: Node; tasks: PingTa
           <p className="rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap">{node.remark}</p>
         )}
 
-        <div className="flex flex-wrap items-center gap-6 rounded-lg border p-4">
-          <TrafficRing used={monthUsage(node)} limit={node.traffic_limit} label="本月流量" />
-          <div className="space-y-1 text-sm">
-            <div className="tnum">
-              累计 ↓{bytes(node.total_rx)} · ↑{bytes(node.total_tx)}
-            </div>
-            <div className="tnum text-muted-foreground">
-              本月 ↓{bytes(node.month_rx)} · ↑{bytes(node.month_tx)}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              周期自 {node.month_start || "—"} 起 · 每月 {node.traffic_reset_day} 日重置 ·{" "}
-              {TRAFFIC_MODES[node.traffic_mode] ?? node.traffic_mode}
-            </div>
+        <div className="space-y-3 rounded-lg border p-4">
+          <Meter
+            label="本月流量"
+            pct={node.traffic_limit > 0 ? percent(monthUsage(node), node.traffic_limit) : null}
+            foot={trafficFoot(node)}
+          />
+          <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-xs sm:grid-cols-4">
+            <span className="tnum">入站实时 {m ? rate(m.net_rx) : "—"}</span>
+            <span className="tnum">出站实时 {m ? rate(m.net_tx) : "—"}</span>
+            <span className="tnum text-muted-foreground">入站总计 {bytes(node.total_rx)}</span>
+            <span className="tnum text-muted-foreground">出站总计 {bytes(node.total_tx)}</span>
+            <span className="tnum text-muted-foreground">本月入站 {bytes(node.month_rx)}</span>
+            <span className="tnum text-muted-foreground">本月出站 {bytes(node.month_tx)}</span>
           </div>
+          <p className="text-xs text-muted-foreground">
+            周期自 {node.month_start || "—"} 起 · 每月 {node.traffic_reset_day} 日重置 ·{" "}
+            {TRAFFIC_MODES[node.traffic_mode] ?? node.traffic_mode}
+          </p>
         </div>
 
         <div className="flex gap-1">

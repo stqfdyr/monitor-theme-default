@@ -1,11 +1,10 @@
-import { ArrowDown, ArrowUp, Cpu, HardDrive, MemoryStick } from "lucide-react"
+import { ArrowDown, ArrowUp } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Meter } from "@/components/Meter"
-import { TrafficRing } from "@/components/TrafficRing"
 import type { Node } from "@/lib/api"
-import { bytes, CYCLES, daysUntil, money, rate, uptime } from "@/lib/format"
+import { bytes, daysUntil, percent, rate, uptime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Which direction the plan meters, matching the node's traffic_mode. */
@@ -30,13 +29,21 @@ export const TRAFFIC_MODES: Record<string, string> = {
   down: "仅下行",
 }
 
-function Label({ icon: Icon, children }: { icon: typeof Cpu; children: string }) {
+/// Online state where the price used to sit: the dot plus how long the machine
+/// has been up, which is what anyone looking at a status page wants first.
+export function Status({ node }: { node: Node }) {
   return (
-    <span className="inline-flex items-center gap-1">
-      <Icon className="size-3" />
-      {children}
-    </span>
+    <Badge variant="outline" className="tnum shrink-0 gap-1.5 font-normal">
+      <span className={cn("size-1.5 rounded-full", node.online ? "bg-foreground" : "bg-muted-foreground/40")} />
+      {node.online ? `在线 ${node.metrics ? uptime(node.metrics.uptime) : ""}` : "离线"}
+    </Badge>
   )
+}
+
+/// Traffic uses the plan's own counting rule, so the bar matches the quota the
+/// node is actually billed against.
+export function trafficFoot(node: Node) {
+  return `${bytes(monthUsage(node))} / ${node.traffic_limit > 0 ? bytes(node.traffic_limit) : "不限"}`
 }
 
 function Expiry({ node }: { node: Node }) {
@@ -63,52 +70,56 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span
-              className={cn("size-2 shrink-0 rounded-full", node.online ? "bg-ok" : "bg-muted-foreground/40")}
-              title={node.online ? "在线" : "离线"}
-            />
-            <h3 className="truncate font-medium">{node.name}</h3>
-          </div>
+          <h3 className="truncate font-medium">{node.name}</h3>
           <p className="mt-1 truncate text-xs text-muted-foreground">
             {node.os || "等待上报"}
             {node.virt && node.virt !== "none" ? ` · ${node.virt}` : ""}
             {node.arch ? ` · ${node.arch}` : ""}
           </p>
         </div>
-        {node.price > 0 && (
-          <Badge variant="secondary" className="shrink-0 tnum font-normal">
-            {money(node.price, node.currency)}/{CYCLES[node.billing_cycle] ?? node.billing_cycle}
-          </Badge>
-        )}
+        <Status node={node} />
       </div>
 
       {m ? (
         <>
-          <div className="mt-4 space-y-2.5">
+          <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4">
             <Meter
-              label={<Label icon={Cpu}>CPU</Label>}
-              used={m.cpu}
-              total={100}
-              format={(n) => `${n.toFixed(1)}%`}
-              hint={`${m.cpu.toFixed(1)}%`}
+              label="CPU"
+              pct={m.cpu}
+              // Load averages only mean anything against the core count, so
+              // they share a line rather than getting a tile of their own.
+              foot={`${m.load.map((n) => n.toFixed(2)).join(" ")} · ${node.cpu_cores || "?"} 核`}
             />
-            <Meter label={<Label icon={MemoryStick}>内存</Label>} used={m.mem_used} total={m.mem_total} format={bytes} />
-            {m.swap_total > 0 && <Meter label="Swap" used={m.swap_used} total={m.swap_total} format={bytes} />}
-            <Meter label={<Label icon={HardDrive}>硬盘</Label>} used={m.disk_used} total={m.disk_total} format={bytes} />
+            <Meter
+              label="内存"
+              pct={percent(m.mem_used, m.mem_total)}
+              foot={`${bytes(m.mem_used)} / ${bytes(m.mem_total)}`}
+            />
+            <Meter
+              label="硬盘"
+              pct={percent(m.disk_used, m.disk_total)}
+              foot={`${bytes(m.disk_used)} / ${bytes(m.disk_total)}`}
+            />
+            <Meter label="流量" pct={node.traffic_limit > 0 ? percent(monthUsage(node), node.traffic_limit) : null} foot={trafficFoot(node)} />
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-            <span className="tnum inline-flex items-center gap-1 text-muted-foreground">
-              <ArrowDown className="size-3 text-ok" />
+          <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-2 border-t pt-4 text-xs">
+            <span className="tnum inline-flex items-center gap-1.5">
+              <ArrowDown className="size-3 text-muted-foreground" />
               {rate(m.net_rx)}
             </span>
-            <span className="tnum inline-flex items-center gap-1 text-muted-foreground">
-              <ArrowUp className="size-3 text-chart-1" />
+            <span className="tnum inline-flex items-center gap-1.5">
+              <ArrowUp className="size-3 text-muted-foreground" />
               {rate(m.net_tx)}
             </span>
-            <span className="text-muted-foreground">运行 {uptime(m.uptime)}</span>
-            <span className="tnum text-muted-foreground">负载 {m.load[0].toFixed(2)}</span>
+            <span className="tnum inline-flex items-center gap-1.5 text-muted-foreground">
+              <ArrowDown className="size-3" />
+              {bytes(node.total_rx)}
+            </span>
+            <span className="tnum inline-flex items-center gap-1.5 text-muted-foreground">
+              <ArrowUp className="size-3" />
+              {bytes(node.total_tx)}
+            </span>
           </div>
         </>
       ) : (
@@ -117,15 +128,11 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
         </p>
       )}
 
-      <div className="mt-4 border-t pt-4">
-        <TrafficRing used={monthUsage(node)} limit={node.traffic_limit} size={76} label="本月流量" />
-        <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-          <span className="tnum">
-            累计 ↓{bytes(node.total_rx)} ↑{bytes(node.total_tx)}
-          </span>
+      {daysUntil(node.expires_at) !== null && (
+        <div className="mt-3 text-right text-xs">
           <Expiry node={node} />
         </div>
-      </div>
+      )}
     </Card>
   )
 }
