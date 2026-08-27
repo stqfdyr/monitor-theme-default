@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { median } from "d3-array"
 import {
   Area, AreaChart, Brush, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Status, trafficFoot } from "@/components/NodeCard"
 import { api, type Node, type PingTask } from "@/lib/api"
-import { bytes, clock, CYCLES, money, rate, uptime } from "@/lib/format"
+import { bytes, clock, CYCLES, money, rate } from "@/lib/format"
 
 type Point = {
   ts: number
@@ -91,6 +91,15 @@ function despike(points: PingPoint[], window = 7, sigmas = 3): PingPoint[] {
   })
 }
 
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border p-3">
+      <h4 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h4>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2">{children}</dl>
+    </div>
+  )
+}
+
 function Fact({ label, value }: { label: string; value?: string | number | null }) {
   if (value === null || value === undefined || value === "") return null
   return (
@@ -124,15 +133,25 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
   // One series per probe that actually reported. Grouping by what came back
   // rather than by the task list means visitors see the chart too — only an
   // admin can read task names, and an id is a good enough label without one.
-  const pingSeries = [...new Set((data?.ping ?? []).map((p) => p.task_id))]
-    .map((id) => ({
-      id,
-      name: tasks.find((t) => t.id === id)?.name ?? `探测 ${id}`,
-      points: (data?.ping ?? []).filter((p) => p.task_id === id && p.latency >= 0),
-    }))
-    .filter((s) => s.points.length > 0)
+  // Memoised, all three of them: the node prop changes every couple of seconds
+  // as live metrics arrive, and rebuilding the chart's data array on each of
+  // those renders resets the brush — drag a window, let go, watch it snap back.
+  const pingSeries = useMemo(
+    () =>
+      [...new Set((data?.ping ?? []).map((p) => p.task_id))]
+        .map((id) => ({
+          id,
+          name: tasks.find((t) => t.id === id)?.name ?? `探测 ${id}`,
+          points: (data?.ping ?? []).filter((p) => p.task_id === id && p.latency >= 0),
+        }))
+        .filter((s) => s.points.length > 0),
+    [data, tasks],
+  )
 
-  const shownProbes = pingSeries.filter((s) => !hiddenProbes.includes(s.id))
+  const shownProbes = useMemo(
+    () => pingSeries.filter((s) => !hiddenProbes.includes(s.id)),
+    [pingSeries, hiddenProbes],
+  )
   // Keyed off the full list, so a line keeps its shade when others are hidden.
   const style = (id: number) => SERIES[pingSeries.findIndex((p) => p.id === id) % SERIES.length]
 
@@ -140,7 +159,7 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
   // intervals rarely share a timestamp, so the rows are sparse and the lines
   // connect across the gaps. Only what is on screen goes in, so the axis and
   // the brush both follow the selection.
-  const pingRows = (() => {
+  const pingRows = useMemo(() => {
     const rows = new Map<number, Record<string, number>>()
     for (const s of shownProbes) {
       for (const p of smooth ? despike(s.points) : s.points) {
@@ -150,10 +169,14 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
       }
     }
     return [...rows.values()].sort((a, b) => a.ts - b.ts)
-  })()
+  }, [shownProbes, smooth])
 
   return (
-    <div className="space-y-5">
+    // On the latency tab the page is exactly one viewport tall and the chart
+    // takes whatever the rest leaves it, so there is nothing to scroll to.
+    <div
+      className={`flex flex-col gap-4 ${tab === "latency" ? "min-h-[calc(100svh-7.5rem)]" : ""}`}
+    >
       <div className="flex items-center gap-2">
         <h2 className="truncate text-lg font-medium">{node.name}</h2>
         <Status node={node} />
@@ -164,25 +187,41 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
         )}
       </div>
 
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Fact label="主机名" value={node.hostname} />
-        <Fact label="系统" value={node.os} />
-        <Fact label="内核" value={node.kernel} />
-        <Fact label="架构" value={`${node.arch}${node.virt && node.virt !== "none" ? ` · ${node.virt}` : ""}`} />
-        <Fact label="CPU" value={node.cpu_name ? `${node.cpu_name} × ${node.cpu_cores}` : null} />
-        <Fact label="内存 / 硬盘" value={`${bytes(node.mem_total)} / ${bytes(node.disk_total)}`} />
-        <Fact label="运行时间" value={m ? uptime(m.uptime) : null} />
-        <Fact
-          label="价格"
-          value={node.price > 0 ? `${money(node.price, node.currency)} / ${CYCLES[node.billing_cycle] ?? node.billing_cycle}` : null}
-        />
-        <Fact label="到期" value={node.expires_at} />
-        <Fact label="连接数" value={m ? `TCP ${m.tcp} · UDP ${m.udp}` : null} />
-        <Fact label="进程" value={m?.procs} />
-        <Fact label="今日流量" value={`↓ ${bytes(node.day_rx)} · ↑ ${bytes(node.day_tx)}`} />
-        <Fact label="本月流量" value={trafficFoot(node)} />
-        <Fact label="累计流量" value={`↓ ${bytes(node.total_rx)} · ↑ ${bytes(node.total_tx)}`} />
-      </dl>
+      {/* Two groups of four. Every line that only restated another one is
+          gone: uptime is already in the badge above, and the kernel, the
+          virtualisation and the process count now ride along with the fact
+          they belong to. */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Group title="机器">
+          <Fact label="系统" value={[node.os, node.kernel].filter(Boolean).join(" · ")} />
+          <Fact
+            label="CPU"
+            value={node.cpu_name ? `${node.cpu_name} × ${node.cpu_cores}` : `${node.cpu_cores} 核`}
+          />
+          <Fact label="内存 / 硬盘" value={`${bytes(node.mem_total)} / ${bytes(node.disk_total)}`} />
+          <Fact
+            label="架构"
+            value={[node.arch, node.virt !== "none" ? node.virt : "", m ? `${m.procs} 进程` : ""]
+              .filter(Boolean)
+              .join(" · ")}
+          />
+        </Group>
+        <Group title="流量与续费">
+          <Fact label="今日" value={`↓ ${bytes(node.day_rx)} · ↑ ${bytes(node.day_tx)}`} />
+          <Fact label="本月" value={trafficFoot(node)} />
+          <Fact label="累计" value={`↓ ${bytes(node.total_rx)} · ↑ ${bytes(node.total_tx)}`} />
+          <Fact
+            label="续费"
+            value={
+              node.price > 0
+                ? `${money(node.price, node.currency)} / ${CYCLES[node.billing_cycle] ?? node.billing_cycle}${
+                    node.expires_at ? ` · ${node.expires_at} 到期` : ""
+                  }`
+                : node.expires_at && `${node.expires_at} 到期`
+            }
+          />
+        </Group>
+      </div>
 
       {node.remark && (
         <p className="rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap">{node.remark}</p>
@@ -228,8 +267,8 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
         pingSeries.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有延迟数据</p>
         ) : (
-          <div className="space-y-3">
-            <div className="h-[60vh] min-h-80 w-full text-muted-foreground">
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="min-h-64 w-full flex-1 text-muted-foreground">
               {shownProbes.length === 0 ? (
                 <p className="py-8 text-center text-sm">没有选中任何探测</p>
               ) : (
