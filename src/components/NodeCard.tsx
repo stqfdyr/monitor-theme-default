@@ -110,12 +110,13 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
       {deployed(node) ? (
         <>
           <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4">
+            {/* The core count belongs beside the word CPU, not trailing the
+                load averages: it is what the percentage and the three numbers
+                below it are both measured against. */}
             <Meter
-              label="CPU"
+              label={`CPU ${node.cpu_cores} 核`}
               pct={m ? m.cpu : null}
-              // Load averages only mean anything against the core count, so
-              // they share a line rather than getting a tile of their own.
-              foot={m ? `${m.load.map((n) => n.toFixed(2)).join(" ")} · ${node.cpu_cores} 核` : `${node.cpu_cores} 核`}
+              foot={m ? m.load.map((n) => n.toFixed(2)).join(" ") : "—"}
             />
             <Meter
               label="内存"
