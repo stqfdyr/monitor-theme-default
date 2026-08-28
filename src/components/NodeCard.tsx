@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Meter } from "@/components/Meter"
 import type { Node } from "@/lib/api"
-import { bytes, daysUntil, percent, rate, uptime } from "@/lib/format"
+import { bytes, daysUntil, osName, percent, rate, uptime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Which direction the plan meters, matching the node's traffic_mode. */
@@ -78,7 +78,7 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
         <div className="min-w-0">
           <h3 className="truncate font-medium">{node.name}</h3>
           <p className="mt-1 truncate text-xs text-muted-foreground">
-            {node.os || "等待首次上报"}
+            {node.os ? osName(node.os) : "等待首次上报"}
             {node.virt && node.virt !== "none" ? ` · ${node.virt}` : ""}
             {node.arch ? ` · ${node.arch}` : ""}
           </p>

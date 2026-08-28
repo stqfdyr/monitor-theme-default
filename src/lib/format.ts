@@ -49,3 +49,20 @@ export const CYCLES: Record<string, string> = {
 export function clock(ts: number): string {
   return new Date(ts * 1000).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
 }
+
+/// Distro and CPU names as their vendors write them are mostly ceremony: a
+/// codename in brackets, "GNU/Linux", "(R)", a core count the card prints
+/// separately anyway. Stripping it is what makes the line fit instead of
+/// ending in an ellipsis.
+export function osName(name: string): string {
+  return name.replace("GNU/Linux ", "").replace(/\s*\([^)]*\)\s*$/, "")
+}
+
+export function cpuName(name: string): string {
+  return name
+    .replace(/\((R|TM|r|tm)\)/g, "")
+    .replace(/\s+(CPU|Processor)\b/g, "")
+    .replace(/\s+\d+-Core\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}

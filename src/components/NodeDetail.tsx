@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Status, trafficFoot } from "@/components/NodeCard"
 import { api, type Node } from "@/lib/api"
-import { bytes, clock, CYCLES, money, rate } from "@/lib/format"
+import { bytes, clock, cpuName, CYCLES, money, osName, rate } from "@/lib/format"
 
 type Point = {
   ts: number
@@ -97,9 +97,10 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   return (
     <div className="rounded-lg border p-3">
       <h4 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h4>
-      {/* One column on a phone: at half of 390px a CPU model or a pair of
-          traffic figures is all ellipsis and no fact. */}
-      <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">{children}</dl>
+      {/* One column until there is room for two: at half of a phone's 390px,
+          or half of the 608px this block gets at the sm breakpoint, a CPU
+          model is all ellipsis and no fact. */}
+      <dl className="grid gap-x-4 gap-y-2 md:grid-cols-2">{children}</dl>
     </div>
   )
 }
@@ -197,12 +198,15 @@ export function NodeDetail({ node }: { node: Node }) {
           gone: uptime is already in the badge above, and the kernel, the
           virtualisation and the process count now ride along with the fact
           they belong to. */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* Side by side only once there is room for two facts per row inside
+          each of them: at 1024px that works out to 230px a fact, which is a
+          kernel version with its tail cut off. */}
+      <div className="grid gap-4 xl:grid-cols-2">
         <Group title="机器">
-          <Fact label="系统" value={[node.os, node.kernel].filter(Boolean).join(" · ")} />
+          <Fact label="系统" value={[osName(node.os), node.kernel].filter(Boolean).join(" · ")} />
           <Fact
             label="CPU"
-            value={node.cpu_name ? `${node.cpu_name} × ${node.cpu_cores}` : `${node.cpu_cores} 核`}
+            value={node.cpu_name ? `${cpuName(node.cpu_name)} × ${node.cpu_cores}` : `${node.cpu_cores} 核`}
           />
           <Fact label="内存 / 硬盘" value={`${bytes(node.mem_total)} / ${bytes(node.disk_total)}`} />
           <Fact
