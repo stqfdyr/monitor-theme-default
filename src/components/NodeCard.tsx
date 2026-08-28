@@ -22,13 +22,22 @@ export function monthUsage(node: Node): number {
   }
 }
 
+/// A node that has reported even once told the hub its shape — cores, memory,
+/// disk — and the hub keeps its traffic totals whether or not it is connected.
+/// A node that never connected has none of that, and is the only case with
+/// nothing to show.
+export function deployed(node: Node) {
+  return node.cpu_cores > 0 || node.mem_total > 0
+}
+
 /// Online state where the price used to sit: the dot plus how long the machine
 /// has been up, which is what anyone looking at a status page wants first.
 export function Status({ node }: { node: Node }) {
+  const label = node.online ? `在线 ${node.metrics ? uptime(node.metrics.uptime) : ""}` : deployed(node) ? "离线" : "未接入"
   return (
     <Badge variant="outline" className="tnum shrink-0 gap-1.5 font-normal">
       <span className={cn("size-1.5 rounded-full", node.online ? "bg-foreground" : "bg-muted-foreground/40")} />
-      {node.online ? `在线 ${node.metrics ? uptime(node.metrics.uptime) : ""}` : "离线"}
+      {label}
     </Badge>
   )
 }
@@ -69,7 +78,7 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
         <div className="min-w-0">
           <h3 className="truncate font-medium">{node.name}</h3>
           <p className="mt-1 truncate text-xs text-muted-foreground">
-            {node.os || "等待上报"}
+            {node.os || "等待首次上报"}
             {node.virt && node.virt !== "none" ? ` · ${node.virt}` : ""}
             {node.arch ? ` · ${node.arch}` : ""}
           </p>
@@ -77,25 +86,29 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
         <Status node={node} />
       </div>
 
-      {m ? (
+      {/* One layout for both states. A disconnected node still knows its cores,
+          its memory and disk size, and its traffic totals — showing those with
+          the live figures left blank beats a stretched card with one line of
+          apology floating in the middle of it. */}
+      {deployed(node) ? (
         <>
           <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4">
             <Meter
               label="CPU"
-              pct={m.cpu}
+              pct={m ? m.cpu : null}
               // Load averages only mean anything against the core count, so
               // they share a line rather than getting a tile of their own.
-              foot={`${m.load.map((n) => n.toFixed(2)).join(" ")} · ${node.cpu_cores || "?"} 核`}
+              foot={m ? `${m.load.map((n) => n.toFixed(2)).join(" ")} · ${node.cpu_cores} 核` : `${node.cpu_cores} 核`}
             />
             <Meter
               label="内存"
-              pct={percent(m.mem_used, m.mem_total)}
-              foot={`${bytes(m.mem_used)} / ${bytes(m.mem_total)}`}
+              pct={m ? percent(m.mem_used, m.mem_total) : null}
+              foot={m ? `${bytes(m.mem_used)} / ${bytes(m.mem_total)}` : bytes(node.mem_total)}
             />
             <Meter
               label="硬盘"
-              pct={percent(m.disk_used, m.disk_total)}
-              foot={`${bytes(m.disk_used)} / ${bytes(m.disk_total)}`}
+              pct={m ? percent(m.disk_used, m.disk_total) : null}
+              foot={m ? `${bytes(m.disk_used)} / ${bytes(m.disk_total)}` : bytes(node.disk_total)}
             />
             <Meter label="流量" pct={node.traffic_limit > 0 ? percent(monthUsage(node), node.traffic_limit) : null} foot={trafficFoot(node)} />
           </div>
@@ -103,11 +116,11 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
           <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-2 border-t pt-4 text-xs">
             <span className="tnum inline-flex items-center gap-1.5">
               <ArrowDown className="size-3 text-muted-foreground" />
-              {rate(m.net_rx)}
+              {m ? rate(m.net_rx) : "—"}
             </span>
             <span className="tnum inline-flex items-center gap-1.5">
               <ArrowUp className="size-3 text-muted-foreground" />
-              {rate(m.net_tx)}
+              {m ? rate(m.net_tx) : "—"}
             </span>
             <span className="tnum inline-flex items-center gap-1.5 text-muted-foreground">
               <ArrowDown className="size-3" />
@@ -120,8 +133,10 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
           </div>
         </>
       ) : (
-        <p className="mt-6 mb-6 text-center text-sm text-muted-foreground">
-          {node.last_seen ? "已离线" : "等待 agent 首次连接"}
+        /* Never connected: there is genuinely nothing to plot, so the card stays
+           short rather than padding itself out to match its neighbours. */
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          还没有接入。在后台生成安装命令，在这台机器上执行一次即可。
         </p>
       )}
 

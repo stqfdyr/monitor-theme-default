@@ -23,10 +23,14 @@ function Tile({ icon: Icon, label, children }: {
   )
 }
 
-/** In and out side by side, the shape every traffic figure on this page takes. */
+/**
+ * In and out side by side, the shape every traffic figure on this page takes —
+ * stacked below sm, where two tiles share a phone's width and a figure like
+ * "23.31 MiB" has about 70px to live in and breaks across two lines instead.
+ */
 function Flow({ down, up, className }: { down: string; up: string; className?: string }) {
   return (
-    <div className={cn("tnum grid grid-cols-2 gap-x-2", className)}>
+    <div className={cn("tnum grid grid-cols-1 gap-x-2 sm:grid-cols-2", className)}>
       <span className="inline-flex items-center gap-1">
         <ArrowDown className="size-3 shrink-0 text-muted-foreground" />
         {down}
