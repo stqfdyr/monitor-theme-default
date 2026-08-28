@@ -56,7 +56,11 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
   return (
     <Card
       onClick={onOpen}
-      className="cursor-pointer gap-0 p-5 transition-colors hover:border-ring"
+      // min-w-0: a grid item sizes to its content unless told otherwise, and
+      // the OS line below does not wrap — so on a phone the card grew past the
+      // column and took the whole page into a sideways scroll. The truncate
+      // inside only works once the card itself is allowed to be narrower.
+      className="min-w-0 cursor-pointer gap-0 p-5 transition-colors hover:border-ring"
       role="button"
       tabIndex={0}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onOpen())}
