@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Status } from "@/components/NodeCard"
 import { api, type Node } from "@/lib/api"
-import { bytes, clock, cpuName, CYCLES, money, osName, rate } from "@/lib/format"
+import { axisBytes, bytes, clock, cpuName, CYCLES, money, osName, rate } from "@/lib/format"
 
 type Point = {
   ts: number
@@ -368,7 +368,7 @@ export function NodeDetail({ node }: { node: Node }) {
               <AreaChart data={data.metrics}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                 <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
-                <YAxis tickFormatter={(v) => bytes(v, 0)} width={62} {...AXIS} />
+                <YAxis tickFormatter={axisBytes} width={68} {...AXIS} />
                 <Tooltip
                   labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
                   formatter={(v) => bytes(Number(v))}
@@ -384,7 +384,7 @@ export function NodeDetail({ node }: { node: Node }) {
               <LineChart data={data.metrics}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                 <XAxis dataKey="ts" tickFormatter={clock} {...AXIS} minTickGap={40} />
-                <YAxis tickFormatter={(v) => bytes(v, 0)} width={62} {...AXIS} />
+                <YAxis tickFormatter={axisBytes} width={68} {...AXIS} />
                 <Tooltip
                   labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
                   formatter={(v) => rate(Number(v))}
@@ -406,7 +406,7 @@ export function NodeDetail({ node }: { node: Node }) {
                     cliff, while the range still fills the panel enough to show
                     a disk that is filling up. The size it is filling is one
                     line up, under 内存 / 硬盘. */}
-                <YAxis tickFormatter={(v) => bytes(v, 0)} width={62} {...AXIS} />
+                <YAxis tickFormatter={axisBytes} width={68} {...AXIS} />
                 <Tooltip
                   labelFormatter={(ts) => new Date(Number(ts) * 1000).toLocaleString("zh-CN")}
                   formatter={(v) => bytes(Number(v))}

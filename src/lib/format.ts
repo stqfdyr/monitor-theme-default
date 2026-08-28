@@ -6,6 +6,17 @@ export function bytes(n: number, digits = 2): string {
   return `${(n / 1024 ** i).toFixed(i === 0 ? 0 : digits)} ${units[i]}`
 }
 
+/// Axis ticks. Whole units alone are too coarse for an axis spanning a narrow
+/// band — a disk at 3.2 GiB drew ticks reading 3 GiB, 2 GiB, 2 GiB, 811 MiB,
+/// 0 B, the same label twice — so ticks under three digits keep one decimal.
+/// Past that the next tick is a whole unit away anyway, and the label has to
+/// stay inside the axis rather than wrapping onto a second line.
+export function axisBytes(v: number): string {
+  if (!v || v < 0) return "0 B"
+  const unit = Math.min(Math.floor(Math.log(v) / Math.log(1024)), 5)
+  return bytes(v, v / 1024 ** unit >= 100 ? 0 : 1).replace(".0 ", " ")
+}
+
 export function rate(n: number): string {
   return `${bytes(n, 1)}/s`
 }
