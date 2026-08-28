@@ -6,7 +6,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Status, trafficFoot } from "@/components/NodeCard"
+import { Status } from "@/components/NodeCard"
 import { api, type Node } from "@/lib/api"
 import { bytes, clock, cpuName, CYCLES, money, osName, rate } from "@/lib/format"
 
@@ -91,18 +91,6 @@ function despike(points: PingPoint[], window = 7, sigmas = 3): PingPoint[] {
     const outlier = mad > 0 && Math.abs(p.latency - mid) > sigmas * 1.4826 * mad
     return outlier ? { ...p, latency: mid } : p
   })
-}
-
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border p-3">
-      <h4 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h4>
-      {/* One column until there is room for two: at half of a phone's 390px,
-          or half of the 608px this block gets at the sm breakpoint, a CPU
-          model is all ellipsis and no fact. */}
-      <dl className="grid gap-x-4 gap-y-2 md:grid-cols-2">{children}</dl>
-    </div>
-  )
 }
 
 function Fact({ label, value }: { label: string; value?: string | number | null }) {
@@ -194,44 +182,35 @@ export function NodeDetail({ node }: { node: Node }) {
         )}
       </div>
 
-      {/* Two groups of four. Every line that only restated another one is
-          gone: uptime is already in the badge above, and the kernel, the
-          virtualisation and the process count now ride along with the fact
-          they belong to. */}
-      {/* Side by side only once there is room for two facts per row inside
-          each of them: at 1024px that works out to 230px a fact, which is a
-          kernel version with its tail cut off. */}
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Group title="机器">
-          <Fact label="系统" value={[osName(node.os), node.kernel].filter(Boolean).join(" · ")} />
-          <Fact
-            label="CPU"
-            value={node.cpu_name ? `${cpuName(node.cpu_name)} × ${node.cpu_cores}` : `${node.cpu_cores} 核`}
-          />
-          <Fact label="内存 / 硬盘" value={`${bytes(node.mem_total)} / ${bytes(node.disk_total)}`} />
-          <Fact
-            label="架构"
-            value={[node.arch, node.virt !== "none" ? node.virt : "", m ? `${m.procs} 进程` : ""]
-              .filter(Boolean)
-              .join(" · ")}
-          />
-        </Group>
-        <Group title="流量与续费">
-          <Fact label="今日" value={`↓ ${bytes(node.day_rx)} · ↑ ${bytes(node.day_tx)}`} />
-          <Fact label="本月" value={trafficFoot(node)} />
-          <Fact label="累计" value={`↓ ${bytes(node.total_rx)} · ↑ ${bytes(node.total_tx)}`} />
-          <Fact
-            label="续费"
-            value={
-              node.price > 0
-                ? `${money(node.price, node.currency)} / ${CYCLES[node.billing_cycle] ?? node.billing_cycle}${
-                    node.expires_at ? ` · ${node.expires_at} 到期` : ""
-                  }`
-                : node.expires_at && `${node.expires_at} 到期`
-            }
-          />
-        </Group>
-      </div>
+      {/* One flat row of facts. Two bordered groups earned their boxes while
+          half the facts were traffic figures; what is left is one machine's
+          spec sheet, and a box around a single topic is just a box. Three
+          across at lg, two at md, one on a phone — a kernel version or a CPU
+          model needs about 270px to stay whole. */}
+      <dl className="grid gap-x-6 gap-y-3 md:grid-cols-2 lg:grid-cols-3">
+        <Fact label="系统" value={[osName(node.os), node.kernel].filter(Boolean).join(" · ")} />
+        <Fact
+          label="CPU"
+          value={node.cpu_name ? `${cpuName(node.cpu_name)} × ${node.cpu_cores}` : `${node.cpu_cores} 核`}
+        />
+        <Fact label="内存 / 硬盘" value={`${bytes(node.mem_total)} / ${bytes(node.disk_total)}`} />
+        <Fact
+          label="架构"
+          value={[node.arch, node.virt !== "none" ? node.virt : "", m ? `${m.procs} 进程` : ""]
+            .filter(Boolean)
+            .join(" · ")}
+        />
+        <Fact
+          label="续费"
+          value={
+            node.price > 0
+              ? `${money(node.price, node.currency)} / ${CYCLES[node.billing_cycle] ?? node.billing_cycle}${
+                  node.expires_at ? ` · ${node.expires_at} 到期` : ""
+                }`
+              : node.expires_at && `${node.expires_at} 到期`
+          }
+        />
+      </dl>
 
       {node.remark && (
         <p className="rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap">{node.remark}</p>
