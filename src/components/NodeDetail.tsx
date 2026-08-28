@@ -200,6 +200,7 @@ export function NodeDetail({ node }: { node: Node }) {
             .filter(Boolean)
             .join(" · ")}
         />
+        <Fact label="今日流量" value={`↓ ${bytes(node.day_rx)} · ↑ ${bytes(node.day_tx)}`} />
         <Fact
           label="续费"
           value={

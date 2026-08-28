@@ -31,13 +31,25 @@ export function deployed(node: Node) {
 }
 
 /// Online state where the price used to sit: the dot plus how long the machine
-/// has been up, which is what anyone looking at a status page wants first.
+/// has been up — or, once it has gone, how long it has been gone, which is the
+/// first thing anyone asks of an offline node. Both are durations, so the badge
+/// keeps its shape either way.
 export function Status({ node }: { node: Node }) {
-  const label = node.online ? `在线 ${node.metrics ? uptime(node.metrics.uptime) : ""}` : deployed(node) ? "离线" : "未接入"
+  const down = node.last_seen ? Date.now() / 1000 - node.last_seen : 0
+  const label = node.online
+    ? `在线 ${node.metrics ? uptime(node.metrics.uptime) : ""}`
+    : deployed(node)
+      ? `离线 ${down >= 60 ? uptime(down) : ""}`
+      : "未接入"
   return (
-    <Badge variant="outline" className="tnum shrink-0 gap-1.5 font-normal">
+    // Muted once it is not reporting: the page still shows real figures, they
+    // are just no longer current, and that is what the badge has to say.
+    <Badge
+      variant="outline"
+      className={cn("tnum shrink-0 gap-1.5 font-normal", !node.online && "text-muted-foreground")}
+    >
       <span className={cn("size-1.5 rounded-full", node.online ? "bg-foreground" : "bg-muted-foreground/40")} />
-      {label}
+      {label.trim()}
     </Badge>
   )
 }
