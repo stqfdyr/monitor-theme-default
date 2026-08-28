@@ -116,6 +116,9 @@ export function NodeDetail({ node }: { node: Node }) {
   const [data, setData] = useState<{ metrics: Point[]; ping: PingPoint[]; probes: Probes } | null>(null)
 
   useEffect(() => {
+    // Blanking first is the point: the charts must not keep drawing the
+    // old range while the new one is in flight.
+    // oxlint-disable-next-line react/set-state-in-effect
     setData(null)
     api<{ metrics: Point[]; ping: PingPoint[]; probes: Probes }>(`/nodes/${node.id}/metrics?hours=${hours}`)
       .then(setData)
