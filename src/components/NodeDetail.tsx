@@ -359,7 +359,7 @@ export function NodeDetail({ node }: { node: Node }) {
           </div>
         )
       ) : data.metrics.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">这段时间还没有历史数据</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有历史数据</p>
       ) : (
         <div className="space-y-5">
           <Panel title="CPU 与负载">

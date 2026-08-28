@@ -141,7 +141,7 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
         /* Never connected: there is genuinely nothing to plot, so the card stays
            short rather than padding itself out to match its neighbours. */
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          还没有接入。在后台生成安装命令，在这台机器上执行一次即可。
+          还没有接入。在后台生成安装命令并执行一次。
         </p>
       )}
     </Card>
