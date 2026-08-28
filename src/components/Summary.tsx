@@ -26,7 +26,7 @@ function Tile({ icon: Icon, label, children }: {
 /**
  * In and out side by side, the shape every traffic figure on this page takes —
  * stacked below sm, where two tiles share a phone's width and a figure like
- * "23.31 MiB" has about 70px to live in and breaks across two lines instead.
+ * "23.3 MB" has about 70px to live in and breaks across two lines instead.
  */
 function Flow({ down, up, className }: { down: string; up: string; className?: string }) {
   return (

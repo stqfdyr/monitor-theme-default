@@ -1,13 +1,40 @@
-/** 1024-based, because every VPS dashboard and `df` report bytes this way. */
-export function bytes(n: number, digits = 2): string {
+const UNITS = ["B", "KB", "MB", "GB", "TB", "PB"]
+
+const unitOf = (n: number) => Math.min(Math.floor(Math.log(n) / Math.log(1024)), UNITS.length - 1)
+
+/// 1024-based, because every VPS dashboard and `df` report bytes this way, but
+/// labelled MB/GB the way `df -h` and every hosting plan write it — nobody sells
+/// a "1000 GiB" plan, and the two extra letters were what pushed the memory and
+/// traffic lines past their column.
+///
+/// Three significant digits by default — "265 GB" of lifetime traffic, "1.8 KB/s"
+/// of live rate. Two decimals everywhere was what forced the card's lines to end
+/// in an ellipsis on a four-column grid; a pair that shares a unit buys them back
+/// through pair() below, by writing the unit once.
+export function bytes(n: number, digits?: number): string {
   if (!n || n < 0) return "0 B"
-  const units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"]
-  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1)
-  return `${(n / 1024 ** i).toFixed(i === 0 ? 0 : digits)} ${units[i]}`
+  const i = unitOf(n)
+  const v = n / 1024 ** i
+  return `${v.toFixed(i === 0 ? 0 : (digits ?? (v >= 100 ? 0 : v >= 10 ? 1 : 2)))} ${UNITS[i]}`
+}
+
+/// A "used / total" pair. When both land in the same unit the unit is written
+/// once, and the four characters that saves are exactly what buys back the two
+/// decimals: measured, 111px against the 122px a card in the four-column grid
+/// gives it, where spelling out both units needs 132px. A pair spanning two
+/// units has nothing to save, so it falls back to bytes() and its three
+/// significant digits (96px), which fits either way.
+export function pair(used: number, total: number): string {
+  if (used > 0 && total > 0 && unitOf(used) === unitOf(total)) {
+    const i = unitOf(total)
+    const f = (n: number) => (n / 1024 ** i).toFixed(i === 0 ? 0 : 2)
+    return `${f(used)} / ${f(total)} ${UNITS[i]}`
+  }
+  return `${bytes(used)} / ${bytes(total)}`
 }
 
 /// Axis ticks. Whole units alone are too coarse for an axis spanning a narrow
-/// band — a disk at 3.2 GiB drew ticks reading 3 GiB, 2 GiB, 2 GiB, 811 MiB,
+/// band — a disk at 3.2 GB drew ticks reading 3 GB, 2 GB, 2 GB, 811 MB,
 /// 0 B, the same label twice — so ticks under three digits keep one decimal.
 /// Past that the next tick is a whole unit away anyway, and the label has to
 /// stay inside the axis rather than wrapping onto a second line.

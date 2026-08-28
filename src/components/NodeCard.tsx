@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Meter } from "@/components/Meter"
 import type { Node } from "@/lib/api"
-import { bytes, daysUntil, FOREVER, osName, percent, rate, uptime } from "@/lib/format"
+import { bytes, daysUntil, FOREVER, osName, pair, percent, rate, uptime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Which direction the plan meters, matching the node's traffic_mode. */
@@ -57,7 +57,9 @@ export function Status({ node }: { node: Node }) {
 /// Traffic uses the plan's own counting rule, so the bar matches the quota the
 /// node is actually billed against.
 export function trafficFoot(node: Node) {
-  return `${bytes(monthUsage(node))} / ${node.traffic_limit > 0 ? bytes(node.traffic_limit) : FOREVER}`
+  return node.traffic_limit > 0
+    ? pair(monthUsage(node), node.traffic_limit)
+    : `${bytes(monthUsage(node))} / ${FOREVER}`
 }
 
 /// No date means nothing ever expires — a permanent box, or one nobody set a
@@ -83,7 +85,7 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
       // the OS line below does not wrap — so on a phone the card grew past the
       // column and took the whole page into a sideways scroll. The truncate
       // inside only works once the card itself is allowed to be narrower.
-      className="min-w-0 cursor-pointer gap-0 p-5 transition-colors hover:border-ring"
+      className="min-w-0 cursor-pointer gap-0 p-4 transition-colors hover:border-ring"
       role="button"
       tabIndex={0}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onOpen())}
@@ -111,7 +113,7 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
           apology floating in the middle of it. */}
       {deployed(node) ? (
         <>
-          <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-4">
+          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4">
             {/* The core count belongs beside the word CPU, not trailing the
                 load averages: it is what the percentage and the three numbers
                 below it are both measured against. */}
@@ -123,12 +125,12 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
             <Meter
               label="内存"
               pct={m ? percent(m.mem_used, m.mem_total) : null}
-              foot={m ? `${bytes(m.mem_used)} / ${bytes(m.mem_total)}` : bytes(node.mem_total)}
+              foot={m ? pair(m.mem_used, m.mem_total) : bytes(node.mem_total)}
             />
             <Meter
               label="硬盘"
               pct={m ? percent(m.disk_used, m.disk_total) : null}
-              foot={m ? `${bytes(m.disk_used)} / ${bytes(m.disk_total)}` : bytes(node.disk_total)}
+              foot={m ? pair(m.disk_used, m.disk_total) : bytes(node.disk_total)}
             />
             <Meter
               label="流量"
@@ -138,7 +140,7 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
             />
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-2 border-t pt-4 text-xs">
+          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-4 text-xs">
             <span className="tnum inline-flex items-center gap-1.5">
               <ArrowDown className="size-3 text-muted-foreground" />
               {m ? rate(m.net_rx) : "—"}
