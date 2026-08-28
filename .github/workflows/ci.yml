@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push supersedes the run still going for the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The hub's release clones this repo's main and builds it, so a broken main
+  # here breaks the hub's release, not just this repo.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
