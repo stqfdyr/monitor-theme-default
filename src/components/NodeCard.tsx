@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Meter } from "@/components/Meter"
 import type { Node } from "@/lib/api"
-import { bytes, daysUntil, osName, percent, rate, uptime } from "@/lib/format"
+import { bytes, daysUntil, FOREVER, osName, percent, rate, uptime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Which direction the plan meters, matching the node's traffic_mode. */
@@ -57,12 +57,14 @@ export function Status({ node }: { node: Node }) {
 /// Traffic uses the plan's own counting rule, so the bar matches the quota the
 /// node is actually billed against.
 export function trafficFoot(node: Node) {
-  return `${bytes(monthUsage(node))} / ${node.traffic_limit > 0 ? bytes(node.traffic_limit) : "不限"}`
+  return `${bytes(monthUsage(node))} / ${node.traffic_limit > 0 ? bytes(node.traffic_limit) : FOREVER}`
 }
 
+/// No date means nothing ever expires — a permanent box, or one nobody set a
+/// renewal for. The symbol says that; a blank corner said nothing.
 function Expiry({ node }: { node: Node }) {
   const days = daysUntil(node.expires_at)
-  if (days === null) return null
+  if (days === null) return <span className="text-xs text-muted-foreground" title="永不到期">{FOREVER}</span>
   const tone = days < 0 ? "text-destructive" : days <= 7 ? "text-warn" : "text-muted-foreground"
   return (
     <span className={cn("tnum text-xs", tone)}>
@@ -128,7 +130,12 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
               pct={m ? percent(m.disk_used, m.disk_total) : null}
               foot={m ? `${bytes(m.disk_used)} / ${bytes(m.disk_total)}` : bytes(node.disk_total)}
             />
-            <Meter label="流量" pct={node.traffic_limit > 0 ? percent(monthUsage(node), node.traffic_limit) : null} foot={trafficFoot(node)} />
+            <Meter
+              label="流量"
+              pct={node.traffic_limit > 0 ? percent(monthUsage(node), node.traffic_limit) : null}
+              empty={FOREVER}
+              foot={trafficFoot(node)}
+            />
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-2 border-t pt-4 text-xs">

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Status } from "@/components/NodeCard"
 import { api, type Node } from "@/lib/api"
-import { axisBytes, bytes, clock, cpuName, CYCLES, money, osName, rate } from "@/lib/format"
+import { axisBytes, bytes, clock, cpuName, CYCLES, FOREVER, money, osName, rate } from "@/lib/format"
 
 type Point = {
   ts: number
@@ -203,13 +203,12 @@ export function NodeDetail({ node }: { node: Node }) {
         <Fact label="今日流量" value={`↓ ${bytes(node.day_rx)} · ↑ ${bytes(node.day_tx)}`} />
         <Fact
           label="续费"
-          value={
+          value={[
             node.price > 0
-              ? `${money(node.price, node.currency)} / ${CYCLES[node.billing_cycle] ?? node.billing_cycle}${
-                  node.expires_at ? ` · ${node.expires_at} 到期` : ""
-                }`
-              : node.expires_at && `${node.expires_at} 到期`
-          }
+              ? `${money(node.price, node.currency)} / ${CYCLES[node.billing_cycle] ?? node.billing_cycle}`
+              : "免费",
+            node.expires_at ? `${node.expires_at} 到期` : FOREVER,
+          ].join(" · ")}
         />
       </dl>
 
