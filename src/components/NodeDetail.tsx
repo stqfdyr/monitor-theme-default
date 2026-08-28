@@ -7,7 +7,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Status, trafficFoot } from "@/components/NodeCard"
-import { api, type Node, type PingTask } from "@/lib/api"
+import { api, type Node } from "@/lib/api"
 import { bytes, clock, CYCLES, money, rate } from "@/lib/format"
 
 type Point = {
@@ -21,6 +21,8 @@ type Point = {
   net_tx: number
 }
 type PingPoint = { task_id: number; ts: number; latency: number }
+/** Probe names by id, sent alongside the samples they label. */
+type Probes = Record<string, string>
 
 const RANGES = [
   { hours: 1, label: "1 小时" },
@@ -110,7 +112,7 @@ function Fact({ label, value }: { label: string; value?: string | number | null 
   )
 }
 
-export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
+export function NodeDetail({ node }: { node: Node }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("resources")
   // Each tab keeps its own range: a 7-day latency trend and a 1-hour CPU trace
   // are different questions, and switching tabs should not reset either.
@@ -120,19 +122,18 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
   // Probes people have switched off. Hiding the slow one is what makes the
   // fast ones readable: the axis rescales to whatever is left on screen.
   const [hiddenProbes, setHiddenProbes] = useState<number[]>([])
-  const [data, setData] = useState<{ metrics: Point[]; ping: PingPoint[] } | null>(null)
+  const [data, setData] = useState<{ metrics: Point[]; ping: PingPoint[]; probes: Probes } | null>(null)
 
   useEffect(() => {
     setData(null)
-    api<{ metrics: Point[]; ping: PingPoint[] }>(`/nodes/${node.id}/metrics?hours=${hours}`)
+    api<{ metrics: Point[]; ping: PingPoint[]; probes: Probes }>(`/nodes/${node.id}/metrics?hours=${hours}`)
       .then(setData)
-      .catch(() => setData({ metrics: [], ping: [] }))
+      .catch(() => setData({ metrics: [], ping: [], probes: {} }))
   }, [node.id, hours])
 
   const m = node.metrics
-  // One series per probe that actually reported. Grouping by what came back
-  // rather than by the task list means visitors see the chart too — only an
-  // admin can read task names, and an id is a good enough label without one.
+  // One series per probe that actually reported, labelled from the names the
+  // samples arrived with — the same for a visitor as for the admin.
   // Memoised, all three of them: the node prop changes every couple of seconds
   // as live metrics arrive, and rebuilding the chart's data array on each of
   // those renders resets the brush — drag a window, let go, watch it snap back.
@@ -141,11 +142,11 @@ export function NodeDetail({ node, tasks }: { node: Node; tasks: PingTask[] }) {
       [...new Set((data?.ping ?? []).map((p) => p.task_id))]
         .map((id) => ({
           id,
-          name: tasks.find((t) => t.id === id)?.name ?? `探测 ${id}`,
+          name: data?.probes?.[id] ?? `探测 ${id}`,
           points: (data?.ping ?? []).filter((p) => p.task_id === id && p.latency >= 0),
         }))
         .filter((s) => s.points.length > 0),
-    [data, tasks],
+    [data],
   )
 
   const shownProbes = useMemo(

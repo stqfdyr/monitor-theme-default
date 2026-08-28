@@ -6,7 +6,7 @@ import { NodeDetail } from "@/components/NodeDetail"
 import { Summary } from "@/components/Summary"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { api, useNodes, type Node, type PingTask } from "@/lib/api"
+import { api, useNodes, type Node } from "@/lib/api"
 
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
 
@@ -49,19 +49,12 @@ function useTheme() {
 export default function App() {
   const [dark, toggleTheme] = useTheme()
   const [me, setMe] = useState<Me | null>(null)
-  const { nodes, admin, error } = useNodes()
+  const { nodes, error } = useNodes()
   const [open, go] = useNodeRoute()
-  const [tasks, setTasks] = useState<PingTask[]>([])
 
   useEffect(() => {
     api<Me>("/me").then(setMe).catch(() => {})
   }, [])
-
-  // Probe names label the latency chart. Only an admin can read the task list;
-  // for everyone else the chart simply falls back to unnamed series.
-  useEffect(() => {
-    if (admin) api<{ tasks: PingTask[] }>("/ping-tasks").then((d) => setTasks(d.tasks)).catch(() => {})
-  }, [admin])
 
   useEffect(() => {
     if (me && !me.public_page && !me.authed) location.href = "/admin/"
@@ -105,7 +98,7 @@ export default function App() {
           !nodes ? (
             <Skeleton className="h-96" />
           ) : selected ? (
-            <NodeDetail node={selected} tasks={tasks} />
+            <NodeDetail node={selected} />
           ) : (
             <p className="py-16 text-center text-sm text-muted-foreground">
               节点不存在或未公开。<button className="underline" onClick={() => go(null)}>返回列表</button>
