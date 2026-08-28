@@ -70,16 +70,6 @@ function Spark({ series, scale }: { series: { values: number[]; className: strin
 
 type Sample = { rx: number; tx: number }
 
-/// A word instead of a second chart: the percentage above already says how
-/// much, so the line under it should say whether that is fine.
-function pressure(cpu: number, online: number) {
-  if (!online) return "无在线节点"
-  if (cpu < 25) return "轻松"
-  if (cpu < 60) return "正常"
-  if (cpu < 85) return "压力"
-  return "满载"
-}
-
 /** Samples on its own clock, so it does not re-run on every parent render. */
 function useHistory(current: Sample) {
   const latest = useRef(current)
@@ -101,9 +91,13 @@ export function Summary({ nodes }: { nodes: Node[] }) {
   const live = online.map((n) => n.metrics!).filter(Boolean)
   const sum = (pick: (n: Node) => number) => nodes.reduce((total, n) => total + pick(n), 0)
 
-  // The figures come straight from the latest push; the samples only feed the
-  // sparklines, so a number never lags its own chart.
-  const cpu = live.length ? live.reduce((s, m) => s + m.cpu, 0) / live.length : 0
+  // The busiest node rather than the average of them all: one machine pinned at
+  // 95% is the thing worth knowing, and a fleet of idle ones averages it away.
+  const busiest = online.reduce<Node | null>(
+    (top, n) => (n.metrics && (!top || n.metrics.cpu > top.metrics!.cpu) ? n : top),
+    null,
+  )
+  const cpu = busiest?.metrics?.cpu ?? 0
   const now = { rx: live.reduce((s, m) => s + m.net_rx, 0), tx: live.reduce((s, m) => s + m.net_tx, 0) }
   const history = useHistory(now)
 
@@ -118,10 +112,10 @@ export function Summary({ nodes }: { nodes: Node[] }) {
         </div>
       </Tile>
 
-      <Tile icon={Activity} label="平均 CPU">
-        <div className="tnum mt-1 text-xl font-semibold">{cpu.toFixed(1)}%</div>
-        <div className={cn("mt-auto pt-1 text-xs", cpu >= 85 ? "font-medium text-foreground" : "text-muted-foreground")}>
-          {pressure(cpu, live.length)}
+      <Tile icon={Activity} label="最忙节点">
+        <div className="tnum mt-1 text-xl font-semibold">{busiest ? `${cpu.toFixed(1)}%` : "—"}</div>
+        <div className={cn("mt-auto truncate pt-1 text-xs", cpu >= 85 ? "font-medium text-foreground" : "text-muted-foreground")}>
+          {busiest ? busiest.name : "无在线节点"}
         </div>
       </Tile>
 

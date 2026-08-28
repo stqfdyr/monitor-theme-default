@@ -53,7 +53,7 @@ function Expiry({ node }: { node: Node }) {
   if (days === null) return null
   const tone = days < 0 ? "text-destructive" : days <= 7 ? "text-warn" : "text-muted-foreground"
   return (
-    <span className={tone}>
+    <span className={cn("tnum text-xs", tone)}>
       {days < 0 ? `已过期 ${-days} 天` : `${days} 天后到期`}
     </span>
   )
@@ -83,7 +83,12 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
             {node.arch ? ` · ${node.arch}` : ""}
           </p>
         </div>
-        <Status node={node} />
+        {/* State on the right, identity on the left, one line each: the expiry
+            used to hang alone under the card, right-aligned against nothing. */}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <Status node={node} />
+          <Expiry node={node} />
+        </div>
       </div>
 
       {/* One layout for both states. A disconnected node still knows its cores,
@@ -138,12 +143,6 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           还没有接入。在后台生成安装命令，在这台机器上执行一次即可。
         </p>
-      )}
-
-      {daysUntil(node.expires_at) !== null && (
-        <div className="mt-3 text-right text-xs">
-          <Expiry node={node} />
-        </div>
       )}
     </Card>
   )

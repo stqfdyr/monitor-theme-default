@@ -97,7 +97,9 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   return (
     <div className="rounded-lg border p-3">
       <h4 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h4>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-2">{children}</dl>
+      {/* One column on a phone: at half of 390px a CPU model or a pair of
+          traffic figures is all ellipsis and no fact. */}
+      <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">{children}</dl>
     </div>
   )
 }
@@ -156,21 +158,28 @@ export function NodeDetail({ node }: { node: Node }) {
   // Keyed off the full list, so a line keeps its shade when others are hidden.
   const style = (id: number) => SERIES[pingSeries.findIndex((p) => p.id === id) % SERIES.length]
 
-  // Brush works off the chart's own data, and probes that run on different
-  // intervals rarely share a timestamp, so the rows are sparse and the lines
-  // connect across the gaps. Only what is on screen goes in, so the axis and
-  // the brush both follow the selection.
+  // Probes that run on different intervals rarely share a timestamp, so the
+  // rows are sparse and the lines connect across the gaps.
+  //
+  // Every probe and both versions of every sample live in here, whether or not
+  // they are on screen: recharts resets the brush the moment the data array
+  // changes identity, and it re-reads a controlled selection only when the
+  // index props themselves change — which they do not. So hiding a probe or
+  // ticking 削峰 must not rebuild the array. They pick a `dataKey` instead, and
+  // the dragged window survives both.
   const pingRows = useMemo(() => {
     const rows = new Map<number, Record<string, number>>()
-    for (const s of shownProbes) {
-      for (const p of smooth ? despike(s.points) : s.points) {
+    for (const s of pingSeries) {
+      const smoothed = despike(s.points)
+      s.points.forEach((p, i) => {
         const row = rows.get(p.ts) ?? { ts: p.ts }
         row[`t${s.id}`] = p.latency
+        row[`s${s.id}`] = smoothed[i].latency
         rows.set(p.ts, row)
-      }
+      })
     }
     return [...rows.values()].sort((a, b) => a.ts - b.ts)
-  }, [shownProbes, smooth])
+  }, [pingSeries])
 
   return (
     <div className="space-y-4">
@@ -288,7 +297,7 @@ export function NodeDetail({ node }: { node: Node }) {
                     {shownProbes.map((s) => (
                       <Line
                         key={s.id}
-                        dataKey={`t${s.id}`}
+                        dataKey={`${smooth ? "s" : "t"}${s.id}`}
                         name={s.name}
                         stroke={style(s.id).stroke}
                         strokeDasharray={style(s.id).dash}
@@ -316,7 +325,7 @@ export function NodeDetail({ node }: { node: Node }) {
                 Recharts paints the brush into the same SVG as the axis, so
                 this is as close beneath it as HTML can sit. */}
             {pingSeries.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
               {pingSeries.map((s) => {
                 const shown = !hiddenProbes.includes(s.id)
                 return (
