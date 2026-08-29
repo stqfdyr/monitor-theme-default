@@ -1,14 +1,19 @@
-import { useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import { Moon, Sun, Wrench } from "lucide-react"
 
 import { NodeCard } from "@/components/NodeCard"
-import { NodeDetail } from "@/components/NodeDetail"
 import { Summary } from "@/components/Summary"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api, useNodes, type Node } from "@/lib/api"
 
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
+
+/// Split off, because recharts is most of this bundle and the list page never
+/// draws a chart. The landing page every visitor gets is 242 kB rather than
+/// 629 kB (77 kB gzipped, against 188 kB); opening a node fetches the rest,
+/// behind the same skeleton that was already covering its history request.
+const NodeDetail = lazy(() => import("@/components/NodeDetail").then((m) => ({ default: m.NodeDetail })))
 
 /// `/node/{id}` is a real page: it survives a reload, can be linked to, and the
 /// back button leaves the detail view instead of the site. The hub serves
@@ -98,7 +103,9 @@ export default function App() {
           !nodes ? (
             <Skeleton className="h-96" />
           ) : selected ? (
-            <NodeDetail node={selected} />
+            <Suspense fallback={<Skeleton className="h-96" />}>
+              <NodeDetail node={selected} />
+            </Suspense>
           ) : (
             <p className="py-16 text-center text-sm text-muted-foreground">
               节点不存在或未公开。<button className="underline" onClick={() => go(null)}>返回列表</button>
