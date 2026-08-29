@@ -1,13 +1,9 @@
-import { useEffect, useRef, useState } from "react"
 import { Activity, ArrowDown, ArrowDownUp, ArrowUp, Gauge, Server } from "lucide-react"
 
 import { Card } from "@/components/ui/card"
-import type { Node } from "@/lib/api"
+import { speedHistory, type Node } from "@/lib/api"
 import { bytes, rate } from "@/lib/format"
 import { cn } from "@/lib/utils"
-
-/** Two minutes at the hub's push interval: enough shape, no scrollback. */
-const KEEP = 60
 
 function Tile({ icon: Icon, label, children }: {
   icon: typeof Server; label: string; children: React.ReactNode
@@ -68,27 +64,8 @@ function Spark({ series, scale }: { series: { values: number[]; className: strin
   )
 }
 
-type Sample = { rx: number; tx: number }
-
-/** Samples on its own clock, so it does not re-run on every parent render. */
-function useHistory(current: Sample) {
-  const latest = useRef(current)
-  // Updated after the render rather than during it, which is the difference
-  // between a ref React is happy with and one it warns about.
-  useEffect(() => {
-    latest.current = current
-  })
-  const [history, setHistory] = useState<Sample[]>([current])
-  useEffect(() => {
-    const timer = setInterval(() => setHistory((h) => [...h, latest.current].slice(-KEEP)), 2000)
-    return () => clearInterval(timer)
-  }, [])
-  return history
-}
-
 export function Summary({ nodes }: { nodes: Node[] }) {
   const online = nodes.filter((n) => n.online)
-  const live = online.map((n) => n.metrics!).filter(Boolean)
   const sum = (pick: (n: Node) => number) => nodes.reduce((total, n) => total + pick(n), 0)
 
   // The busiest node rather than the average of them all: one machine pinned at
@@ -98,8 +75,9 @@ export function Summary({ nodes }: { nodes: Node[] }) {
     null,
   )
   const cpu = busiest?.metrics?.cpu ?? 0
-  const now = { rx: live.reduce((s, m) => s + m.net_rx, 0), tx: live.reduce((s, m) => s + m.net_tx, 0) }
-  const history = useHistory(now)
+  // Same push that produced `nodes` produced this sample, so the figure above
+  // the line is the line's own last point.
+  const now = speedHistory.at(-1) ?? { rx: 0, tx: 0 }
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -134,8 +112,8 @@ export function Summary({ nodes }: { nodes: Node[] }) {
         <div className="mt-auto pt-1">
           <Spark
             series={[
-              { values: history.map((s) => s.rx), className: "text-foreground" },
-              { values: history.map((s) => s.tx), className: "text-muted-foreground" },
+              { values: speedHistory.map((s) => s.rx), className: "text-foreground" },
+              { values: speedHistory.map((s) => s.tx), className: "text-muted-foreground" },
             ]}
           />
         </div>

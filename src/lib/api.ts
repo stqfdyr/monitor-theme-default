@@ -79,6 +79,25 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /**
+ * Fleet throughput, one sample per push. It lives beside the stream that feeds
+ * it rather than inside the tile that draws it: the summary unmounts for as
+ * long as a node page is open, so a buffer kept in it starts from nothing every
+ * time someone comes back — and the tile's own two-second timer was a second
+ * clock racing the hub's anyway. Two minutes at the hub's push interval.
+ */
+const KEEP = 60
+export const speedHistory: { rx: number; tx: number }[] = []
+
+function sample(nodes: Node[]) {
+  const live = nodes.filter((n) => n.online && n.metrics)
+  speedHistory.push({
+    rx: live.reduce((s, n) => s + n.metrics!.net_rx, 0),
+    tx: live.reduce((s, n) => s + n.metrics!.net_tx, 0),
+  })
+  if (speedHistory.length > KEEP) speedHistory.shift()
+}
+
+/**
  * Live node list. Uses the WebSocket the hub pushes every two seconds and
  * falls back to polling if it cannot be established.
  */
@@ -94,12 +113,17 @@ export function useNodes() {
     let retry: ReturnType<typeof setTimeout> | null = null
     let closed = false
 
+    const receive = (list: Node[]) => {
+      sample(list)
+      setNodes(list)
+      setError(null)
+    }
+
     const fetchOnce = () =>
       api<{ nodes: Node[]; admin: boolean }>("/nodes")
         .then((d) => {
-          setNodes(d.nodes)
+          receive(d.nodes)
           setAdmin(d.admin)
-          setError(null)
         })
         .catch((e: Error) => setError(e.message))
 
@@ -118,8 +142,7 @@ export function useNodes() {
         return
       }
       socket.onmessage = (event) => {
-        setNodes(JSON.parse(event.data).nodes)
-        setError(null)
+        receive(JSON.parse(event.data).nodes)
         // The stream is back; the poll was only covering for it.
         if (poll) {
           clearInterval(poll)
