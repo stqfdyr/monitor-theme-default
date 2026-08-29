@@ -37,29 +37,6 @@
   --chart-3: oklch(0.58 0 0);
   --chart-4: oklch(0.7 0 0);
   --chart-5: oklch(0.82 0 0);
-  /* The one place on the page where several series share an axis: the probe
-     lines. Everything else is one series to a panel and stays grey.
-     Chroma is held between 0.055 and 0.085 — roughly a third of what a
-     saturated chart palette uses — so they read as tinted grey rather than
-     as colour on a grey page. The hues are the dusty end of each: slate
-     blue, terracotta, sage, plum, ochre. 320 was tried for the fourth and
-     came out as candy magenta; 305 is the same separation without it.
-
-     The lightnesses are spread rather than levelled, because with the dash
-     patterns gone colour is the only channel left, and two of these pairs —
-     terracotta against sage, slate against plum — are the ones red-green
-     colour blindness collapses. Spread, the closest risky pair stands at
-     1.25:1 against each other where levelled it was 1.03:1, which is to say
-     invisible. It does not reach the 1.4:1 that would make them safely
-     separable: four hues this muted on a neutral ground cannot be both this
-     quiet and that far apart, and brightening them or bringing the dashes
-     back were both ruled out. The way out for a viewer who cannot tell two
-     of them apart is the legend, where a chip switches its own line off. */
-  --probe-1: oklch(0.42 0.075 245);
-  --probe-2: oklch(0.64 0.085 45);
-  --probe-3: oklch(0.50 0.055 175);
-  --probe-4: oklch(0.36 0.06 305);
-  --probe-5: oklch(0.58 0.07 85);
   /* Greyscale has no red or amber, so severity is carried by weight: the
      bar gets darker as it fills. */
   --ok: oklch(0.62 0 0);
@@ -90,20 +67,6 @@
   --chart-3: oklch(0.68 0 0);
   --chart-4: oklch(0.54 0 0);
   --chart-5: oklch(0.42 0 0);
-  /* Same hues, and less chroma rather than more. A tint that reads as muted
-     on paper reads as neon against a near-black ground — the eye judges
-     saturation against what surrounds it — so these carry about two thirds
-     of the light mode's.
-     The ladder is the light mode's shifted down as a whole rather than
-     stretched up. Lifting it to clear the ground turned terracotta and plum
-     into pastels, and what separates two lines is the ratio between them,
-     which a shift leaves alone: the same 1.34:1 at #cb8e72 as at #e6a68a,
-     and 3.72:1 against the ground, where 3:1 is what a line needs. */
-  --probe-1: oklch(0.56 0.065 245);
-  --probe-2: oklch(0.70 0.07 45);
-  --probe-3: oklch(0.52 0.05 175);
-  --probe-4: oklch(0.64 0.055 305);
-  --probe-5: oklch(0.60 0.055 85);
   /* Inverted for the dark ground: the fuller the bar, the brighter. */
   --ok: oklch(0.62 0 0);
   --warn: oklch(0.79 0 0);
@@ -137,11 +100,6 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --color-probe-1: var(--probe-1);
-  --color-probe-2: var(--probe-2);
-  --color-probe-3: var(--probe-3);
-  --color-probe-4: var(--probe-4);
-  --color-probe-5: var(--probe-5);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
 }
