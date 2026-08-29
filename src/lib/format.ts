@@ -159,3 +159,37 @@ export function timeTicks(from: number, to: number, count = 8): number[] {
   for (let t = Math.ceil((from - zone) / step) * step + zone; t <= to; t += step) ticks.push(t)
   return ticks
 }
+
+/// A zero-anchored axis top for a quantity with no capacity to measure it
+/// against — a utilisation percentage, a load average, a transfer rate.
+///
+/// Derived from the gridline rather than the other way round: pick the
+/// smallest round step whose fourth multiple clears the data, and return that.
+/// Chosen the other way, the top is round and the four gridlines under it are
+/// not — a ceiling of 75% draws its lines at 18.75 and 56.25, and 25 000 000
+/// bytes is a top of "23.8 MB". `base` is 1024 for a quantity written in
+/// binary units, so its steps are round in the unit it is finally printed in.
+///
+/// `floor` is what keeps an idle machine looking idle. Tracked exactly, a box
+/// that never leaves 0.4% CPU gets an axis of 0–0.4 and every scheduler blip
+/// is a mountain. Measured across the fleet: two of seven machines never pass
+/// 6% CPU in a day, and against the fixed 0–100 this replaces, both drew as a
+/// straight line along the floor of the panel.
+export function axisTop(max: number, floor: number, base = 10, cap = Infinity): number {
+  const target = Math.min(cap, Math.max(max, floor)) / 4
+  const scale = base ** Math.floor(Math.log(target) / Math.log(base))
+  const step = [1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10].map((m) => m * scale).find((n) => n >= target)
+  return Math.min(cap, (step ?? target) * 4)
+}
+
+/// The gridlines for a zero-anchored axis: the top and the three quarters
+/// under it.
+///
+/// Stated rather than left to recharts, which picks its own "nice" values in
+/// decimal whatever domain it is handed — a top of 30 MiB came back as 7.6,
+/// 15.3, 22.9, 30, which are neither quarters nor round in the unit they are
+/// printed in. It is the same thing that put the time axis on 05:14 and 10:22,
+/// so every axis in the chart area now says what it wants.
+export function quarters(top: number): number[] {
+  return [0, 0.25, 0.5, 0.75, 1].map((f) => top * f)
+}

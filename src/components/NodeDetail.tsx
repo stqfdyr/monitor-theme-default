@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Status } from "@/components/NodeCard"
 import { api, type Node } from "@/lib/api"
 import {
-  axisBytes, bytes, clockFor, cpuName, CYCLES, FOREVER, money, osName, rate, timeTicks,
+  axisBytes, axisTop, bytes, clockFor, quarters, cpuName, CYCLES, FOREVER, money, osName, rate, timeTicks,
 } from "@/lib/format"
 
 type Point = {
@@ -18,7 +18,6 @@ type Point = {
   cpu: number
   load1: number
   mem_used: number
-  swap_used: number
   disk_used: number
   net_rx: number
   net_tx: number
@@ -44,9 +43,13 @@ const RANGES = [
   { hours: 168, label: "7 天" },
 ]
 
-/// Latency stops at a day: a week of it is one line per probe drawn through
-/// samples a day already shows the shape of.
-const RANGES_FOR = { resources: RANGES, latency: RANGES.filter((r) => r.hours <= 24) }
+/// Both tabs offer the same windows. Latency used to stop at a day, on the
+/// grounds that a week of it was one line drawn through samples a day already
+/// showed — which was true while a bucket was one sample and the line was all
+/// there was. A week now thins to buckets that carry a median, the range around
+/// it and a loss figure, which is a week's worth of answers rather than a week
+/// of thinner line.
+const RANGES_FOR = { resources: RANGES, latency: RANGES }
 
 const AXIS = { stroke: "currentColor", fontSize: 11, tickLine: false, axisLine: false }
 
@@ -163,17 +166,25 @@ export function NodeDetail({ node }: { node: Node }) {
     setData(null)
     // oxlint-disable-next-line react/set-state-in-effect
     setZoom(null)
-    // What this screen can actually draw, the way a Grafana panel sends its
-    // own width. Read here rather than off a ref: the hub only ever thins
-    // further, so a rough figure is enough, and the viewport is known before
-    // the chart has been laid out. A rotation keeps whatever it fetched with.
-    const points = Math.round(globalThis.innerWidth)
+    // What this screen can actually resolve, the way a Grafana panel sends its
+    // own width — in device pixels, because that is what the line is finally
+    // drawn in and a 1280-wide retina panel really does have 2560 of them to
+    // put a day of minutes across. Read here rather than off a ref: the hub
+    // only ever thins further, so a rough figure is enough, and the viewport is
+    // known before the chart has been laid out. A rotation keeps whatever it
+    // fetched with.
+    //
+    // The tab decides which half is asked for. The other half was between a
+    // third and two thirds of every response and was never drawn — and it is
+    // that saving which pays for asking for every sample rather than a summary.
+    const points = Math.round(globalThis.innerWidth * (globalThis.devicePixelRatio || 1))
+    const series = tab === "latency" ? "ping" : "metrics"
     api<{ metrics: Point[]; ping: PingPoint[]; probes: Probes }>(
-      `/nodes/${node.id}/metrics?hours=${hours}&points=${points}`,
+      `/nodes/${node.id}/metrics?hours=${hours}&points=${points}&series=${series}`,
     )
       .then(setData)
       .catch(() => setData({ metrics: [], ping: [], probes: {} }))
-  }, [node.id, hours])
+  }, [node.id, hours, tab])
 
   const m = node.metrics
   // One series per probe that actually reported, labelled from the names the
@@ -207,6 +218,32 @@ export function NodeDetail({ node }: { node: Node }) {
     () => (data?.metrics ?? []).map((m) => ({ ...m, ts: m.ts * 1_000 })),
     [data],
   )
+
+  /// Axis tops for the two panels that have no capacity to measure against.
+  ///
+  /// CPU and a transfer rate are not "how full is it" questions: a machine can
+  /// sit at 0.4% CPU for a week, and against the fixed 0–100 this replaces,
+  /// two of the seven machines here drew as a straight line along the floor of
+  /// the panel. Memory and disk keep their totals as their tops instead, one
+  /// panel down, because for those "how full" is the entire question.
+  ///
+  /// The load line's floor is the core count, so 1.0 sits where "this machine
+  /// is exactly busy" sits, whatever the axis has scaled to.
+  const tops = useMemo(() => {
+    const max = (pick: (m: Point) => number) =>
+      metricRows.reduce((hi, m) => Math.max(hi, pick(m)), 0)
+    return {
+      // A floor of 4% rather than none: a machine that never leaves 0.4% would
+      // otherwise get an axis of 0–0.4 and draw every scheduler blip as a
+      // mountain. Capped at 100, which is all a percentage has.
+      cpu: axisTop(max((m) => m.cpu), 4, 10, 100),
+      // Floored at the core count, so 1.0 per core — "exactly busy" — is always
+      // on the axis and a queue is always visible above it.
+      load: axisTop(max((m) => m.load1), node.cpu_cores || 1),
+      // Base 1024, so the steps are round in the unit `axisBytes` prints.
+      rate: axisTop(max((m) => Math.max(m.net_rx, m.net_tx)), 1024, 1024),
+    }
+  }, [metricRows, node.cpu_cores])
 
   const shownProbes = useMemo(
     () => pingSeries.filter((s) => !hiddenProbes.includes(s.id)),
@@ -506,29 +543,47 @@ export function NodeDetail({ node }: { node: Node }) {
         <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有历史数据</p>
       ) : (
         <div className="space-y-5">
+          {/* Two units, so two axes. They shared one labelled "%" until now,
+              where a load of 0.34 drew at 0.34% and was indistinguishable from
+              the floor, and CCS's load of 4.32 — a real queue on three cores —
+              drew below the 5% gridline. */}
           <Panel title="CPU 与负载">
             <ResponsiveContainer>
               <AreaChart data={metricRows}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                 <XAxis {...timeAxis(metricRows)} />
-                <YAxis domain={[0, 100]} unit="%" width={Y_WIDTH} {...AXIS} />
+                <YAxis yAxisId="cpu" domain={[0, tops.cpu]} ticks={quarters(tops.cpu)} unit="%" width={Y_WIDTH} {...AXIS} />
+                <YAxis
+                  yAxisId="load"
+                  orientation="right"
+                  domain={[0, tops.load]}
+                  ticks={quarters(tops.load)}
+                  width={32}
+                  {...AXIS}
+                />
                 <Tooltip
                   labelFormatter={(ts) => new Date(Number(ts)).toLocaleString("zh-CN")}
                   formatter={(v, name) => [name === "cpu" ? `${Number(v).toFixed(1)}%` : Number(v).toFixed(2), name === "cpu" ? "CPU" : "负载"]}
                   contentStyle={{ fontSize: 12 }}
                 />
-                <Area dataKey="cpu" stroke="var(--color-chart-1)" fill="var(--color-chart-1)" fillOpacity={0.15} {...SERIES} />
-                <Area dataKey="load1" stroke="var(--color-chart-3)" fill="none" {...SERIES} />
+                <Area yAxisId="cpu" dataKey="cpu" stroke="var(--color-chart-1)" fill="var(--color-chart-1)" fillOpacity={0.15} {...SERIES} />
+                <Area yAxisId="load" dataKey="load1" stroke="var(--color-chart-3)" fill="none" {...SERIES} />
               </AreaChart>
             </ResponsiveContainer>
           </Panel>
 
-          <Panel title="内存">
+          {/* The axis top is the machine's memory, so the line's height is the
+              fraction in use and stays that whatever range is picked. Tracking
+              the window's own maximum instead — which is what an area chart
+              does by default, and what this did — put 127 MB of a 457 MB box at
+              the top of the panel, which reads as a machine about to run out.
+              The size is in the title because the axis top is now claiming it. */}
+          <Panel title={`内存 · ${bytes(node.mem_total)}`}>
             <ResponsiveContainer>
               <AreaChart data={metricRows}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                 <XAxis {...timeAxis(metricRows)} />
-                <YAxis tickFormatter={axisBytes} width={Y_WIDTH} {...AXIS} />
+                <YAxis domain={[0, node.mem_total]} ticks={quarters(node.mem_total)} tickFormatter={axisBytes} width={Y_WIDTH} {...AXIS} />
                 <Tooltip
                   labelFormatter={(ts) => new Date(Number(ts)).toLocaleString("zh-CN")}
                   formatter={(v) => bytes(Number(v))}
@@ -539,12 +594,14 @@ export function NodeDetail({ node }: { node: Node }) {
             </ResponsiveContainer>
           </Panel>
 
+          {/* A rate has no total to be a fraction of, so this one climbs the
+              ladder like CPU rather than being pinned to a capacity. */}
           <Panel title="网络速率">
             <ResponsiveContainer>
               <LineChart data={metricRows}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                 <XAxis {...timeAxis(metricRows)} />
-                <YAxis tickFormatter={axisBytes} width={Y_WIDTH} {...AXIS} />
+                <YAxis domain={[0, tops.rate]} ticks={quarters(tops.rate)} tickFormatter={axisBytes} width={Y_WIDTH} {...AXIS} />
                 <Tooltip
                   labelFormatter={(ts) => new Date(Number(ts)).toLocaleString("zh-CN")}
                   formatter={(v) => rate(Number(v))}
@@ -556,17 +613,15 @@ export function NodeDetail({ node }: { node: Node }) {
             </ResponsiveContainer>
           </Panel>
 
-          <Panel title="硬盘">
+          {/* The disk it is filling, for the same reason as memory. Alice uses
+              2.7% of hers; against the window's own maximum that drew as a line
+              along the top of the panel, which is the opposite of what it says. */}
+          <Panel title={`硬盘 · ${bytes(node.disk_total)}`}>
             <ResponsiveContainer>
               <AreaChart data={metricRows}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                 <XAxis {...timeAxis(metricRows)} />
-                {/* Anchored at zero like the memory panel above, so a few
-                    hundred megabytes of churn cannot be magnified into a
-                    cliff, while the range still fills the panel enough to show
-                    a disk that is filling up. The size it is filling is one
-                    line up, under 内存 / 硬盘. */}
-                <YAxis tickFormatter={axisBytes} width={Y_WIDTH} {...AXIS} />
+                <YAxis domain={[0, node.disk_total]} ticks={quarters(node.disk_total)} tickFormatter={axisBytes} width={Y_WIDTH} {...AXIS} />
                 <Tooltip
                   labelFormatter={(ts) => new Date(Number(ts)).toLocaleString("zh-CN")}
                   formatter={(v) => bytes(Number(v))}
