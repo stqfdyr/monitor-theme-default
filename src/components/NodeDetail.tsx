@@ -16,7 +16,6 @@ import {
 type Point = {
   ts: number
   cpu: number
-  load1: number
   mem_used: number
   disk_used: number
   net_rx: number
@@ -43,13 +42,11 @@ const RANGES = [
   { hours: 168, label: "7 天" },
 ]
 
-/// Both tabs offer the same windows. Latency used to stop at a day, on the
-/// grounds that a week of it was one line drawn through samples a day already
-/// showed — which was true while a bucket was one sample and the line was all
-/// there was. A week now thins to buckets that carry a median, the range around
-/// it and a loss figure, which is a week's worth of answers rather than a week
-/// of thinner line.
-const RANGES_FOR = { resources: RANGES, latency: RANGES }
+/// Latency stops at a day. The spread and the loss figure would survive a week
+/// — a bucket that wide carries both — but a week of probe history is not a
+/// question this page is for, and the windows it does answer are the ones where
+/// every ping is still on the chart.
+const RANGES_FOR = { resources: RANGES, latency: RANGES.filter((r) => r.hours <= 24) }
 
 const AXIS = { stroke: "currentColor", fontSize: 11, tickLine: false, axisLine: false }
 
@@ -226,9 +223,6 @@ export function NodeDetail({ node }: { node: Node }) {
   /// two of the seven machines here drew as a straight line along the floor of
   /// the panel. Memory and disk keep their totals as their tops instead, one
   /// panel down, because for those "how full" is the entire question.
-  ///
-  /// The load line's floor is the core count, so 1.0 sits where "this machine
-  /// is exactly busy" sits, whatever the axis has scaled to.
   const tops = useMemo(() => {
     const max = (pick: (m: Point) => number) =>
       metricRows.reduce((hi, m) => Math.max(hi, pick(m)), 0)
@@ -237,13 +231,10 @@ export function NodeDetail({ node }: { node: Node }) {
       // otherwise get an axis of 0–0.4 and draw every scheduler blip as a
       // mountain. Capped at 100, which is all a percentage has.
       cpu: axisTop(max((m) => m.cpu), 4, 10, 100),
-      // Floored at the core count, so 1.0 per core — "exactly busy" — is always
-      // on the axis and a queue is always visible above it.
-      load: axisTop(max((m) => m.load1), node.cpu_cores || 1),
       // Base 1024, so the steps are round in the unit `axisBytes` prints.
       rate: axisTop(max((m) => Math.max(m.net_rx, m.net_tx)), 1024, 1024),
     }
-  }, [metricRows, node.cpu_cores])
+  }, [metricRows])
 
   const shownProbes = useMemo(
     () => pingSeries.filter((s) => !hiddenProbes.includes(s.id)),
@@ -543,31 +534,18 @@ export function NodeDetail({ node }: { node: Node }) {
         <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有历史数据</p>
       ) : (
         <div className="space-y-5">
-          {/* Two units, so two axes. They shared one labelled "%" until now,
-              where a load of 0.34 drew at 0.34% and was indistinguishable from
-              the floor, and CCS's load of 4.32 — a real queue on three cores —
-              drew below the 5% gridline. */}
-          <Panel title="CPU 与负载">
+          <Panel title="CPU">
             <ResponsiveContainer>
               <AreaChart data={metricRows}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                 <XAxis {...timeAxis(metricRows)} />
-                <YAxis yAxisId="cpu" domain={[0, tops.cpu]} ticks={quarters(tops.cpu)} unit="%" width={Y_WIDTH} {...AXIS} />
-                <YAxis
-                  yAxisId="load"
-                  orientation="right"
-                  domain={[0, tops.load]}
-                  ticks={quarters(tops.load)}
-                  width={32}
-                  {...AXIS}
-                />
+                <YAxis domain={[0, tops.cpu]} ticks={quarters(tops.cpu)} unit="%" width={Y_WIDTH} {...AXIS} />
                 <Tooltip
                   labelFormatter={(ts) => new Date(Number(ts)).toLocaleString("zh-CN")}
-                  formatter={(v, name) => [name === "cpu" ? `${Number(v).toFixed(1)}%` : Number(v).toFixed(2), name === "cpu" ? "CPU" : "负载"]}
+                  formatter={(v) => [`${Number(v).toFixed(1)}%`, "CPU"]}
                   contentStyle={{ fontSize: 12 }}
                 />
-                <Area yAxisId="cpu" dataKey="cpu" stroke="var(--color-chart-1)" fill="var(--color-chart-1)" fillOpacity={0.15} {...SERIES} />
-                <Area yAxisId="load" dataKey="load1" stroke="var(--color-chart-3)" fill="none" {...SERIES} />
+                <Area dataKey="cpu" stroke="var(--color-chart-1)" fill="var(--color-chart-1)" fillOpacity={0.15} {...SERIES} />
               </AreaChart>
             </ResponsiveContainer>
           </Panel>
