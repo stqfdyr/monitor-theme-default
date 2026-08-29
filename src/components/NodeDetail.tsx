@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { median } from "d3-array"
 import {
-  Area, AreaChart, Brush, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, Brush, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer,
+  Tooltip, XAxis, YAxis,
 } from "recharts"
 
 import { Badge } from "@/components/ui/badge"
@@ -22,9 +23,17 @@ type Point = {
   net_rx: number
   net_tx: number
 }
-/// `latency` is the bucket's mean round trip and is null when every probe in
-/// it timed out; `loss` is the percentage that did, and is absent when none did.
-type PingPoint = { task_id: number; ts: number; latency: number | null; loss?: number }
+/// `latency` is the bucket's median round trip and is null when every probe in
+/// it timed out; `band` is the range its answers spanned, absent when they
+/// spanned nothing; `loss` is the percentage that timed out, absent when none
+/// did.
+type PingPoint = {
+  task_id: number
+  ts: number
+  latency: number | null
+  band?: [number, number]
+  loss?: number
+}
 /** Probe names by id, sent alongside the samples they label. */
 type Probes = Record<string, string>
 
@@ -217,7 +226,10 @@ export function NodeDetail({ node }: { node: Node }) {
   // ticking 削峰 must not rebuild the array. They pick a `dataKey` instead, and
   // the dragged window survives both.
   const pingRows = useMemo(() => {
-    const rows = new Map<number, { ts: number } & Record<string, number | null>>()
+    const rows = new Map<
+      number,
+      { ts: number } & Record<string, number | [number, number] | null>
+    >()
     for (const s of pingSeries) {
       const smoothed = despike(s.points)
       s.points.forEach((p, i) => {
@@ -225,6 +237,9 @@ export function NodeDetail({ node }: { node: Node }) {
         row[`t${s.id}`] = p.latency
         row[`s${s.id}`] = smoothed[i].latency
         row[`l${s.id}`] = p.loss ?? 0
+        // Raw, never despiked: the band's whole job is to show what the line
+        // is leaving out, and smoothing it would leave out the same thing.
+        row[`b${s.id}`] = p.band ?? null
         rows.set(p.ts, row)
       })
     }
@@ -345,7 +360,7 @@ export function NodeDetail({ node }: { node: Node }) {
                 <p className="py-8 text-center text-sm">没有选中任何探测</p>
               ) : (
                 <ResponsiveContainer>
-                  <LineChart data={pingRows}>
+                  <ComposedChart data={pingRows}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                     <XAxis
                       {...timeAxis(
@@ -368,6 +383,32 @@ export function NodeDetail({ node }: { node: Node }) {
                       }}
                       contentStyle={{ fontSize: 12 }}
                     />
+                    {/* Behind the line, the range that bucket's answers
+                        spanned -- Smokeping's "smoke". A bucket at the day
+                        window moves 63 ms at the 90th percentile against the
+                        25 ms the trend itself moves, so a line on its own draws
+                        the smaller of the two things happening.
+                        
+                        Only when one probe is left on screen. Rendered for all
+                        four, the bands overlap into a fog and their extremes
+                        drag the axis from 165–385 out to 140–420, flattening
+                        the lines they sit behind. So the overview stays lines,
+                        and the spread is what you get for narrowing to one --
+                        which is the point at which you are asking about it. */}
+                    {shownProbes.length === 1 &&
+                      shownProbes.map((s) => (
+                        <Area
+                          key={`band${s.id}`}
+                          dataKey={`b${s.id}`}
+                          stroke="none"
+                          fill={style(s.id).stroke}
+                          fillOpacity={0.16}
+                          isAnimationActive={false}
+                          tooltipType="none"
+                          legendType="none"
+                          connectNulls
+                        />
+                      ))}
                     {shownProbes.map((s) => (
                       <Line
                         key={s.id}
@@ -389,7 +430,7 @@ export function NodeDetail({ node }: { node: Node }) {
                       stroke="var(--color-muted-foreground)"
                       onChange={(r) => setWindow([r.startIndex ?? 0, r.endIndex ?? pingRows.length - 1])}
                     />
-                  </LineChart>
+                  </ComposedChart>
                 </ResponsiveContainer>
               )}
             </div>
