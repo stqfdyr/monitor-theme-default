@@ -178,8 +178,13 @@ export function NodeDetail({ node }: { node: Node }) {
           // its packets draw as an unbroken healthy line, and a probe that
           // answered nothing at all disappear from the chart entirely.
           const points = (data?.ping ?? []).filter((p) => p.task_id === id)
+          // Left unrounded on purpose. `Math.round` here made 0.28% and 0.00%
+          // the same badge, which is no badge -- and the badge's absence is
+          // what a reader takes for "this probe lost nothing". A bucket only
+          // carries `loss` when it lost something, so a sum above zero is an
+          // exact "at least one timeout", and that is the thing worth keeping.
           const loss = points.reduce((sum, p) => sum + (p.loss ?? 0), 0) / (points.length || 1)
-          return { id, name: data?.probes?.[id] ?? `探测 ${id}`, points, loss: Math.round(loss) }
+          return { id, name: data?.probes?.[id] ?? `探测 ${id}`, points, loss }
         })
         .filter((s) => s.points.length > 0),
     [data],
@@ -423,7 +428,11 @@ export function NodeDetail({ node }: { node: Node }) {
                     {/* The line is only what answered. A probe dropping half
                         its packets draws exactly like a healthy one, so the
                         figure has to be written somewhere. */}
-                    {s.loss > 0 && <span className="tabular-nums opacity-60">丢 {s.loss}%</span>}
+                    {s.loss > 0 && (
+                      <span className="tabular-nums opacity-60">
+                        丢 {s.loss < 1 ? "<1" : Math.round(s.loss)}%
+                      </span>
+                    )}
                   </button>
                 )
               })}
