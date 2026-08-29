@@ -59,8 +59,6 @@ export type Node = {
   remark?: string
 }
 
-export type PingTask = { id: number; name: string; target: string; interval: number; nodes: number[] }
-
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) {
@@ -103,9 +101,7 @@ function sample(nodes: Node[]) {
  */
 export function useNodes() {
   const [nodes, setNodes] = useState<Node[] | null>(null)
-  const [admin, setAdmin] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [reload, setReload] = useState(0)
 
   useEffect(() => {
     let socket: WebSocket | null = null
@@ -120,11 +116,8 @@ export function useNodes() {
     }
 
     const fetchOnce = () =>
-      api<{ nodes: Node[]; admin: boolean }>("/nodes")
-        .then((d) => {
-          receive(d.nodes)
-          setAdmin(d.admin)
-        })
+      api<{ nodes: Node[] }>("/nodes")
+        .then((d) => receive(d.nodes))
         .catch((e: Error) => setError(e.message))
 
     fetchOnce()
@@ -164,7 +157,7 @@ export function useNodes() {
       if (poll) clearInterval(poll)
       if (retry) clearTimeout(retry)
     }
-  }, [reload])
+  }, [])
 
-  return { nodes, admin, error, refresh: () => setReload((n) => n + 1) }
+  return { nodes, error }
 }
