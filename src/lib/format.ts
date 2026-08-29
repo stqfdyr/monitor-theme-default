@@ -94,14 +94,34 @@ export const CYCLES: Record<string, string> = {
 /// sample when it lays an axis out, not once per tick it draws. Building an
 /// Intl formatter per call was the single largest cost on the detail page:
 /// 348 ms of a 1531 ms click-to-chart, against the live database's 1436 ping
-/// samples. Reused, the same page draws in 960 ms. `format` takes epoch
-/// milliseconds, so the throwaway Date goes with it. The zone resolves once
-/// now rather than per call, which only an OS timezone change under an open
-/// tab would notice.
+/// samples. Reused, the same page draws in 960 ms. The zone resolves once now
+/// rather than per call, which only an OS timezone change under an open tab
+/// would notice.
+///
+/// Both of these take **epoch milliseconds**, which is also what the charts
+/// feed their time axis: recharts hands `scale="time"` straight to a d3 time
+/// scale, and a scale given seconds reads 1.79e9 as three weeks past the epoch
+/// and lays its ticks out accordingly -- 05:14, 10:22, 15:30 instead of 06:00,
+/// 12:00, 18:00. The hub answers in seconds; the chart multiplies once.
 const HHMM = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" })
 
-export function clock(ts: number): string {
-  return HHMM.format(ts * 1000)
+const MDHHMM = new Intl.DateTimeFormat("zh-CN", {
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+})
+
+export function clock(ms: number): string {
+  return HHMM.format(ms)
+}
+
+/// Axis ticks for a window `hours` wide. Past a day a bare "14:00" comes round
+/// again every midnight and the axis stops saying which day it means — the
+/// seven-day chart read 03:21 … 23:53 … 02:27 with nothing to separate Tuesday
+/// from Wednesday.
+export function clockFor(hours: number): (ms: number) => string {
+  return hours <= 24 ? clock : (ms: number) => MDHHMM.format(ms)
 }
 
 /// Distro and CPU names as their vendors write them are mostly ceremony: a
@@ -119,4 +139,23 @@ export function cpuName(name: string): string {
     .replace(/\s+\d+-Core\b/g, "")
     .replace(/\s+/g, " ")
     .trim()
+}
+
+/// Ticks on round clock values across `[from, to]`, in epoch milliseconds.
+///
+/// recharts picks axis ticks by "nice number" on the raw value, which on a
+/// timestamp means 05:14 and 10:22 where a chart wants 06:00 and 12:00 — it
+/// never reaches for a time scale's own ticks, whatever `scale` says. So the
+/// axis is handed the list instead: the smallest step from the ladder that
+/// keeps the count under `count`, phased on local midnight rather than on the
+/// epoch, so a daily tick lands on the day and a half-hourly one on the half
+/// hour even in a zone offset by 30 or 45 minutes.
+const TICK_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1440, 2880, 10080].map((m) => m * 60_000)
+
+export function timeTicks(from: number, to: number, count = 8): number[] {
+  const step = TICK_STEPS.find((s) => (to - from) / s <= count) ?? TICK_STEPS[TICK_STEPS.length - 1]
+  const zone = new Date(from).getTimezoneOffset() * 60_000
+  const ticks: number[] = []
+  for (let t = Math.ceil((from - zone) / step) * step + zone; t <= to; t += step) ticks.push(t)
+  return ticks
 }
