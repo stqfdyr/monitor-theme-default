@@ -31,6 +31,10 @@ const RANGES = [
   { hours: 168, label: "7 天" },
 ]
 
+/// Latency stops at a day: a week of it is one line per probe drawn through
+/// samples a day already shows the shape of.
+const RANGES_FOR = { resources: RANGES, latency: RANGES.filter((r) => r.hours <= 24) }
+
 const AXIS = { stroke: "currentColor", fontSize: 11, tickLine: false, axisLine: false }
 
 /// The palette is greyscale, so lightness alone runs out after two or three
@@ -229,7 +233,7 @@ export function NodeDetail({ node }: { node: Node }) {
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex gap-1">
-            {RANGES.map((r) => (
+            {RANGES_FOR[tab].map((r) => (
               <Tab
                 key={r.hours}
                 active={hours === r.hours}
