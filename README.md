@@ -44,6 +44,8 @@ npm run dev
 | `author` | 作者 |
 | `url` | 源码地址 |
 
+每个 tag 的 release 里的 `theme.tar.gz` 解开就是这个目录——hub 构建时嵌入的是同一个包。
+
 将目录复制到 hub 的 `--themes` 位置，在后台「主题」页切换，无需重启。
 
 ## 主题契约

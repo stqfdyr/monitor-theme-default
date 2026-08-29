@@ -14,11 +14,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The hub embeds this theme by cloning a tag of it -- whichever one the
-  # hub's own web-theme.version names -- and building it there. So main
-  # breaking no longer breaks a hub release, but a tag must be sound before
-  # the hub is pointed at it: that build happens in the hub's CI, not here.
-  # Releasing a theme version is two steps, tag here and bump that file there.
+  # The hub embeds a released archive, never this repo's source: release.yml
+  # builds a tag here and publishes theme.tar.gz, and the hub's web-theme.pin
+  # names the tag plus its sha256. So main breaking cannot break a hub build --
+  # but this is the only gate a tag gets, because by the time the hub sees it
+  # the build already happened here. Shipping to a hub is two steps: tag here,
+  # then move that pin there.
   build:
     runs-on: ubuntu-latest
     steps:
