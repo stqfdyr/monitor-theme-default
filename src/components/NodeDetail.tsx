@@ -63,14 +63,20 @@ const SERIES = { dot: false as const, strokeWidth: 1.5, isAnimationActive: false
 /// either happened.
 const Y_WIDTH = 68
 
-/// The palette is greyscale, so lightness alone runs out after two or three
-/// series; the dash pattern carries the rest of the difference.
+/// Colour, where the rest of the page is grey, because this is the one chart
+/// with several series over one axis.
+///
+/// It replaces a greyscale palette that carried the difference in dash
+/// patterns — which stopped working the moment every ping in the window went
+/// on the chart: at a sample a minute the dash period is shorter than the
+/// jitter, so a dotted line and a dashed one are both just texture. Solid
+/// lines in muted hues separate at any density.
 const PALETTE = [
-  { stroke: "var(--color-chart-1)", dash: undefined },
-  { stroke: "var(--color-chart-3)", dash: "6 3" },
-  { stroke: "var(--color-chart-2)", dash: "2 3" },
-  { stroke: "var(--color-chart-4)", dash: "10 4 2 4" },
-  { stroke: "var(--color-chart-5)", dash: "1 4" },
+  "var(--color-probe-1)",
+  "var(--color-probe-2)",
+  "var(--color-probe-3)",
+  "var(--color-probe-4)",
+  "var(--color-probe-5)",
 ]
 
 const TABS = [
@@ -241,7 +247,7 @@ export function NodeDetail({ node }: { node: Node }) {
     [pingSeries, hiddenProbes],
   )
   // Keyed off the full list, so a line keeps its shade when others are hidden.
-  const style = (id: number) => PALETTE[pingSeries.findIndex((p) => p.id === id) % PALETTE.length]
+  const colour = (id: number) => PALETTE[pingSeries.findIndex((p) => p.id === id) % PALETTE.length]
 
   // The hub stamps every sample with its bucket rather than with the second
   // the probe happened to finish on, so probes reporting at the bucket's rate
@@ -450,7 +456,7 @@ export function NodeDetail({ node }: { node: Node }) {
                           key={`band${s.id}`}
                           dataKey={`b${s.id}`}
                           stroke="none"
-                          fill={style(s.id).stroke}
+                          fill={colour(s.id)}
                           fillOpacity={0.16}
                           isAnimationActive={false}
                           tooltipType="none"
@@ -463,8 +469,7 @@ export function NodeDetail({ node }: { node: Node }) {
                         key={s.id}
                         dataKey={`${smooth ? "s" : "t"}${s.id}`}
                         name={s.name}
-                        stroke={style(s.id).stroke}
-                        strokeDasharray={style(s.id).dash}
+                        stroke={colour(s.id)}
                         {...SERIES}
                         connectNulls
                       />
@@ -509,8 +514,7 @@ export function NodeDetail({ node }: { node: Node }) {
                         y1="3"
                         x2="14"
                         y2="3"
-                        stroke={style(s.id).stroke}
-                        strokeDasharray={style(s.id).dash}
+                        stroke={colour(s.id)}
                         strokeWidth="2"
                       />
                     </svg>
