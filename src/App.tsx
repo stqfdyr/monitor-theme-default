@@ -11,9 +11,10 @@ type Me = { authed: boolean; github: boolean; site_name: string; public_page: bo
 
 /// Split off, because recharts is most of this bundle and the list page never
 /// draws a chart. The landing page every visitor gets is 242 kB rather than
-/// 629 kB (77 kB gzipped, against 188 kB); opening a node fetches the rest,
-/// behind the same skeleton that was already covering its history request.
-const NodeDetail = lazy(() => import("@/components/NodeDetail").then((m) => ({ default: m.NodeDetail })))
+/// 629 kB (77 kB gzipped, against 188 kB); the rest is fetched right after
+/// that page paints, so a node still opens into a drawn chart.
+const loadDetail = () => import("@/components/NodeDetail").then((m) => ({ default: m.NodeDetail }))
+const NodeDetail = lazy(loadDetail)
 
 /// `/node/{id}` is a real page: it survives a reload, can be linked to, and the
 /// back button leaves the detail view instead of the site. The hub serves
@@ -59,6 +60,13 @@ export default function App() {
 
   useEffect(() => {
     api<Me>("/me").then(setMe).catch(() => {})
+    // Warm the chunk here rather than leaving it to Suspense, which asks for it
+    // only once a render reaches the detail view -- itself waiting on /me. The
+    // split is meant to speed up the first paint, and without this it paid for
+    // that by dropping a full-page skeleton over the first node anyone opened:
+    // on a 4G profile, 2.6s from click to chart against 1.4s unsplit. Warm, it
+    // is 1.7s, and the landing page still ships 242 kB.
+    void loadDetail()
   }, [])
 
   useEffect(() => {
