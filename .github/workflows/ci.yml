@@ -14,8 +14,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The hub's release clones this repo's main and builds it, so a broken main
-  # here breaks the hub's release, not just this repo.
+  # The hub embeds this theme by cloning a tag of it -- whichever one the
+  # hub's own web-theme.version names -- and building it there. So main
+  # breaking no longer breaks a hub release, but a tag must be sound before
+  # the hub is pointed at it: that build happens in the hub's CI, not here.
+  # Releasing a theme version is two steps, tag here and bump that file there.
   build:
     runs-on: ubuntu-latest
     steps:
