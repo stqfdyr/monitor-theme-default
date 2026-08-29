@@ -152,7 +152,9 @@ export function NodeDetail({ node }: { node: Node }) {
   const [data, setData] = useState<{ metrics: Point[]; ping: PingPoint[]; probes: Probes } | null>(null)
   // What the brush has been dragged to, so the axis can retick for the stretch
   // actually on screen instead of keeping the ticks of the whole window.
-  const [zoom, setWindow] = useState<[number, number] | null>(null)
+  const [zoom, setZoom] = useState<[number, number] | null>(null)
+  // Where the chart starts on screen, so its height can be the rest of it.
+  const [chartTop, setChartTop] = useState(0)
 
   useEffect(() => {
     // Blanking first is the point: the charts must not keep drawing the
@@ -160,7 +162,7 @@ export function NodeDetail({ node }: { node: Node }) {
     // oxlint-disable-next-line react/set-state-in-effect
     setData(null)
     // oxlint-disable-next-line react/set-state-in-effect
-    setWindow(null)
+    setZoom(null)
     // What this screen can actually draw, the way a Grafana panel sends its
     // own width. Read here rather than off a ref: the hub only ever thins
     // further, so a rough figure is enough, and the viewport is known before
@@ -350,12 +352,31 @@ export function NodeDetail({ node }: { node: Node }) {
         pingSeries.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有延迟数据</p>
         ) : (
-          <div className="space-y-3">
-            {/* A measured height, not flex-1: ResponsiveContainer reads its
-                parent's height, and inside a min-height flex chain that first
-                read can come back 0 — which draws nothing at all. Viewport
-                minus what sits above it, so the chart still ends at the fold. */}
-            <div className="h-[calc(100svh-26rem)] min-h-72 w-full text-muted-foreground">
+          // An explicit pixel height on the column, so the chart can be
+          // `flex-1` inside it and the legend can be whatever it needs. That is
+          // the part a constant could not do: four probes are one row of chips
+          // on a desktop and two on a phone, and any number reserved for them
+          // is wrong on one of the two.
+          <div
+            ref={(el) => setChartTop(el?.getBoundingClientRect().top ?? 0)}
+            style={
+              chartTop
+                ? { height: `calc(100svh - ${Math.round(chartTop)}px - 1rem)` }
+                : undefined
+            }
+            className="flex min-h-72 flex-col gap-3">
+            {/* `min-h-0` is what makes `flex-1` a real number here rather than
+                the content's own height: ResponsiveContainer reads its parent,
+                and a flex child that has not been told it may shrink reports
+                whatever the SVG last was. The column above it has a height in
+                pixels, so this resolves at layout rather than coming back 0 and
+                drawing nothing.
+                
+                It used to be `100svh-26rem`, which is what sits above this on a
+                desktop; on a phone that block is a single column of six facts
+                and half as tall again, so the chart ran off the bottom of the
+                screen and took the loss figures with it. */}
+            <div className="min-h-0 w-full flex-1 text-muted-foreground">
               {shownProbes.length === 0 ? (
                 <p className="py-8 text-center text-sm">没有选中任何探测</p>
               ) : (
@@ -428,7 +449,7 @@ export function NodeDetail({ node }: { node: Node }) {
                       tickFormatter={clockFor(hours)}
                       className="fill-muted"
                       stroke="var(--color-muted-foreground)"
-                      onChange={(r) => setWindow([r.startIndex ?? 0, r.endIndex ?? pingRows.length - 1])}
+                      onChange={(r) => setZoom([r.startIndex ?? 0, r.endIndex ?? pingRows.length - 1])}
                     />
                   </ComposedChart>
                 </ResponsiveContainer>
