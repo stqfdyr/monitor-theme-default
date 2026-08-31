@@ -8,7 +8,7 @@ import { bytes, daysUntil, FOREVER, osName, pair, percent, rate, uptime } from "
 import { cn } from "@/lib/utils"
 
 /** Which direction the plan meters, matching the node's traffic_mode. */
-export function monthUsage(node: Node): number {
+function monthUsage(node: Node): number {
   const { month_rx: rx, month_tx: tx } = node
   switch (node.traffic_mode) {
     case "up":
@@ -26,7 +26,7 @@ export function monthUsage(node: Node): number {
 /// disk — and the hub keeps its traffic totals whether or not it is connected.
 /// A node that never connected has none of that, and is the only case with
 /// nothing to show.
-export function deployed(node: Node) {
+function deployed(node: Node) {
   return node.cpu_cores > 0 || node.mem_total > 0
 }
 
@@ -56,7 +56,7 @@ export function Status({ node }: { node: Node }) {
 
 /// Traffic uses the plan's own counting rule, so the bar matches the quota the
 /// node is actually billed against.
-export function trafficFoot(node: Node) {
+function trafficFoot(node: Node) {
   return node.traffic_limit > 0
     ? pair(monthUsage(node), node.traffic_limit)
     : `${bytes(monthUsage(node))} / ${FOREVER}`

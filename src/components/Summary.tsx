@@ -44,8 +44,8 @@ function Flow({ down, up, className }: { down: string; up: string; className?: s
  * and recharts would bring a chart's worth of machinery for it. Series share
  * one scale so the two throughput lines stay comparable.
  */
-function Spark({ series, scale }: { series: { values: number[]; className: string }[]; scale?: number }) {
-  const top = Math.max(scale ?? 0, ...series.flatMap((s) => s.values), 1)
+function Spark({ series }: { series: { values: number[]; className: string }[] }) {
+  const top = Math.max(...series.flatMap((s) => s.values), 1)
   const width = Math.max(...series.map((s) => s.values.length), 2) - 1
   return (
     <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="h-7 w-full" aria-hidden>
