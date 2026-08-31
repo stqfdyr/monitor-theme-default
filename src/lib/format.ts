@@ -12,7 +12,10 @@ const unitOf = (n: number) => Math.min(Math.floor(Math.log(n) / Math.log(1024)),
 /// in an ellipsis on a four-column grid; a pair that shares a unit buys them back
 /// through pair() below, by writing the unit once.
 export function bytes(n: number, digits?: number): string {
-  if (!n || n < 0) return "0 B"
+  // `< 1`, not `< 0`: a fraction of a byte lands `unitOf` on -1 and prints
+  // "512 undefined". Nothing divides here today, but this is the formatter
+  // every figure on the page goes through.
+  if (!n || n < 1) return "0 B"
   const i = unitOf(n)
   const v = n / 1024 ** i
   return `${v.toFixed(i === 0 ? 0 : (digits ?? (v >= 100 ? 0 : v >= 10 ? 1 : 2)))} ${UNITS[i]}`

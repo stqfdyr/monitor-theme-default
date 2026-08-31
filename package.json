@@ -1,12 +1,13 @@
 {
   "name": "monitor-theme-default",
   "private": true,
-  "version": "0.1.13",
+  "version": "0.1.14",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "node src/lib/format.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

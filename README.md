@@ -19,7 +19,10 @@ npm ci
 npm run dev
 ```
 
-构建产物位于 `dist/`。提交前运行 `npm run build && npm run lint`。
+构建产物位于 `dist/`。提交前运行 `npm run build && npm run lint && npm test`。
+
+`npm test` 校验 `src/lib/format.ts`——页面上每个数字都从那里出来。它没有测试框架，
+Node 自己剥掉类型，失败时退出码非零。
 
 ## 主题包
 
@@ -56,9 +59,13 @@ npm run dev
 |---|---|
 | `GET /api/me` | 站点名、登录状态、公开页开关 |
 | `GET /api/nodes` | 节点列表、实时指标和累计流量 |
-| `GET /api/nodes/{id}/metrics?hours=N` | 历史指标和延迟记录 |
+| `GET /api/nodes/{id}/metrics` | 历史指标和延迟记录 |
 | `GET /api/ws` | 每 2 秒推送一次节点快照的 WebSocket |
-| `GET /api/ping-tasks` | 延迟曲线名称，仅管理员可读，匿名访问返回 401 |
+
+`metrics` 的三个查询参数都可省：`hours=N` 是窗口宽度；`points=W` 是调用方画得下的点数，
+只会让 hub 抽得更稀，不会更密；`series=metrics|ping` 只取要画的那一半，省掉的那半原本占
+响应的三分之一到三分之二。探测曲线的名字在响应的 `probes` 里随样本一起下发，匿名可读，
+所以画延迟图不需要第二个请求，也不需要管理员身份。
 
 匿名访问 `GET /api/nodes` 仅返回 `public=1` 的节点，响应中不含 `ip`、`hostname`、`remark`。字段定义以 hub 的 `src/api.rs` 为准。
 
