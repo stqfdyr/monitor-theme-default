@@ -73,13 +73,21 @@ export default function App() {
     if (me && !me.public_page && !me.authed) location.href = "/admin/"
   }, [me])
 
+  const sorted = [...(nodes ?? [])].sort((a, b) => a.sort - b.sort || a.id - b.id)
+  const selected = sorted.find((n) => n.id === open)
+
+  // `/node/{id}` is a page people bookmark and paste to each other, and every
+  // one of them was filed under the bare site name. The site name rather than
+  // "Monitor": the hub lets an operator rename the site, and the tab is the one
+  // place that name was not reaching.
+  useEffect(() => {
+    document.title = [selected?.name, me?.site_name || "Monitor"].filter(Boolean).join(" · ")
+  }, [selected?.name, me?.site_name])
+
   if (!me) return <div className="grid min-h-svh place-items-center text-sm text-muted-foreground">加载中…</div>
 
   // The status page is closed and nobody is signed in: send them to the panel.
   if (!me.public_page && !me.authed) return null
-
-  const sorted = [...(nodes ?? [])].sort((a, b) => a.sort - b.sort || a.id - b.id)
-  const selected = sorted.find((n) => n.id === open)
 
   return (
     <div className="min-h-svh">
