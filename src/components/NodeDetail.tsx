@@ -394,7 +394,15 @@ export function NodeDetail({ node }: { node: Node }) {
           // on a desktop and two on a phone, and any number reserved for them
           // is wrong on one of the two.
           <div
-            ref={(el) => setChartTop(el?.getBoundingClientRect().top ?? 0)}
+            // `+ scrollY`, because getBoundingClientRect is measured from the
+            // viewport: this callback runs again on every render, and a live
+            // node re-renders every two seconds, so without it a scrolled page
+            // re-derives the height from a top that has moved. Today the
+            // min-height below happens to absorb it exactly; that is a
+            // coincidence of the arithmetic, not something to rely on.
+            ref={(el) => {
+              if (el) setChartTop(el.getBoundingClientRect().top + scrollY)
+            }}
             style={
               chartTop
                 ? { height: `calc(100svh - ${Math.round(chartTop)}px - 1rem)` }
@@ -587,7 +595,7 @@ export function NodeDetail({ node }: { node: Node }) {
               <LineChart data={metricRows}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                 <XAxis {...timeAxis(metricRows)} />
-                <YAxis domain={[0, tops.rate]} ticks={quarters(tops.rate)} tickFormatter={axisBytes} width={Y_WIDTH} {...AXIS} />
+                <YAxis domain={[0, tops.rate]} ticks={quarters(tops.rate)} tickFormatter={axisBytes} unit="/s" width={Y_WIDTH} {...AXIS} />
                 <Tooltip
                   labelFormatter={(ts) => new Date(Number(ts)).toLocaleString("zh-CN")}
                   formatter={(v) => rate(Number(v))}
