@@ -21,10 +21,9 @@ type Point = {
   net_rx: number
   net_tx: number
 }
-/// `latency` is the bucket's median round trip and is null when every probe in
-/// it timed out; `band` is the range its answers spanned, absent when they
-/// spanned nothing; `loss` is the percentage that timed out, absent when none
-/// did.
+// `latency` is the bucket's median round trip, null when every probe in it
+// timed out. `band` is the range its answers spanned, absent when they spanned
+// nothing. `loss` is the percentage that timed out, absent when none did.
 type PingPoint = {
   task_id: number
   ts: number
@@ -42,37 +41,31 @@ const RANGES = [
   { hours: 168, label: "7 天" },
 ]
 
-/// Latency stops at a day. The spread and the loss figure would survive a week
-/// — a bucket that wide carries both — but a week of probe history is not a
-/// question this page is for, and the windows it does answer are the ones where
-/// every ping is still on the chart.
+// Latency stops at a day. A week-wide bucket would still carry the spread and
+// the loss figure, but a week of probe history is not a question this page is
+// for, and these are the windows where every ping is still on the chart.
 const RANGES_FOR = { resources: RANGES, latency: RANGES.filter((r) => r.hours <= 24) }
 
 const AXIS = { stroke: "currentColor", fontSize: 11, tickLine: false, axisLine: false }
 
-/// No grow-in animation. It is 1.5 s of a line crawling across the panel every
-/// time a range button is pressed, on a page whose whole job is to be read at a
-/// glance -- and on the latency chart it is that animation run over seven
-/// hundred points a probe. Nothing else here animates either.
+// No grow-in animation: 1.5 s of a line crawling across the panel on every
+// range change, on a page meant to be read at a glance -- and on the latency
+// chart, that animation over seven hundred points a probe.
 const SERIES = { dot: false as const, strokeWidth: 1.5, isAnimationActive: false }
 
-/// One width for every stacked panel's value axis. They used to size to their
-/// own labels — 40px under "100%", 68px under "172 MB" — which slid the four
-/// plot areas 28px out of line with each other, so a CPU spike and the network
-/// spike that caused it sat at different x and the axes disagreed about when
-/// either happened.
+// One width for every stacked panel's value axis. Sized to their own labels
+// -- 40px under "100%", 68px under "172 MB" -- the four plot areas slide 28px
+// out of line, so a CPU spike and the network spike that caused it sit at
+// different x.
 const Y_WIDTH = 68
 
-/// The palette is greyscale, so lightness alone runs out after two or three
-/// series; the dash pattern carries the rest of the difference.
-///
-/// Known ceiling: the dash period is shorter than the jitter once every ping
-/// in the window is on the chart, so at the day range a dotted line and a
-/// dashed one are both texture and only the lightness still separates them.
-/// A muted colour palette was built and measured for this and then shelved —
-/// the values and what they measured are under "探测线用颜色区分" in
-/// docs/decisions.md, and turning it back on is that file's five oklch pairs
-/// plus dropping `dash` from here.
+// The palette is greyscale, so lightness alone runs out after two or three
+// series and the dash pattern carries the rest.
+// ponytail: the dash period is shorter than the jitter once every ping in the
+// window is on the chart, so at the day range a dotted line and a dashed one
+// are both texture and only lightness still separates them. A muted colour
+// palette was built, measured and shelved; restoring it is the five oklch pairs
+// under "探测线用颜色区分" in the hub's docs/decisions.md plus dropping `dash`.
 const PALETTE = [
   { stroke: "var(--color-chart-1)", dash: undefined },
   { stroke: "var(--color-chart-3)", dash: "6 3" },
@@ -109,11 +102,10 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
 }
 
 /**
- * Hampel filter, the standard identifier for impulse noise in a time series
- * (Hampel 1974; the same thing MATLAB ships as `hampel`). A point more than
- * `sigmas` robust deviations from its window's median is an outlier and gets
- * replaced by that median — everything else is passed through untouched, which
- * is what separates it from a plain rolling median or a moving average.
+ * Hampel filter (Hampel 1974; MATLAB ships it as `hampel`). A point more than
+ * `sigmas` robust deviations from its window's median is replaced by that
+ * median; everything else passes through untouched, which is what separates it
+ * from a rolling median or a moving average.
  *
  * 1.4826 rescales the median absolute deviation into a standard deviation for
  * normally distributed data; 3 sigma is the usual cut.
@@ -123,8 +115,8 @@ function despike(points: PingPoint[], window = 7, sigmas = 3): PingPoint[] {
   // ponytail: recomputes the window per point. A few thousand samples is
   // nothing; swap in a rolling structure if a chart ever needs 100k.
   return points.map((p, i) => {
-    // A timeout is a hole, not a tall reading: it neither gets smoothed nor
-    // counts towards what its neighbours are compared against.
+    // A timeout is a hole, not a tall reading: neither smoothed, nor counted
+    // towards what its neighbours are compared against.
     if (p.latency === null) return p
     const near = points
       .slice(Math.max(0, i - half), i + half + 1)
@@ -149,39 +141,36 @@ function Fact({ label, value }: { label: string; value?: string | number | null 
 
 export function NodeDetail({ node }: { node: Node }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("resources")
-  // Each tab keeps its own range: a 7-day latency trend and a 1-hour CPU trace
-  // are different questions, and switching tabs should not reset either.
+  // Each tab keeps its own range: a 7-day trend and a 1-hour trace are
+  // different questions.
   const [ranges, setRanges] = useState({ resources: 6, latency: 6 })
   const hours = ranges[tab]
   const [smooth, setSmooth] = useState(false)
-  // Probes people have switched off. Hiding the slow one is what makes the
-  // fast ones readable: the axis rescales to whatever is left on screen.
+  // Probes switched off. Hiding the slow one is what makes the fast ones
+  // readable: the axis rescales to whatever is left.
   const [hiddenProbes, setHiddenProbes] = useState<number[]>([])
   const [data, setData] = useState<{ metrics: Point[]; ping: PingPoint[]; probes: Probes } | null>(null)
-  // What the brush has been dragged to, so the axis can retick for the stretch
-  // actually on screen instead of keeping the ticks of the whole window.
+  // What the brush has been dragged to, so the axis reticks for the stretch on
+  // screen rather than keeping the whole window's ticks.
   const [zoom, setZoom] = useState<[number, number] | null>(null)
   // Where the chart starts on screen, so its height can be the rest of it.
   const [chartTop, setChartTop] = useState(0)
 
   useEffect(() => {
-    // Blanking first is the point: the charts must not keep drawing the
-    // old range while the new one is in flight.
+    // The charts must not keep drawing the old range while the new one is in
+    // flight.
     // oxlint-disable-next-line react/set-state-in-effect
     setData(null)
     // oxlint-disable-next-line react/set-state-in-effect
     setZoom(null)
-    // What this screen can actually resolve, the way a Grafana panel sends its
-    // own width — in device pixels, because that is what the line is finally
-    // drawn in and a 1280-wide retina panel really does have 2560 of them to
-    // put a day of minutes across. Read here rather than off a ref: the hub
-    // only ever thins further, so a rough figure is enough, and the viewport is
-    // known before the chart has been laid out. A rotation keeps whatever it
-    // fetched with.
+    // What this screen can resolve, in device pixels: that is what the line is
+    // drawn in, and a 1280-wide retina panel has 2560 of them for a day of
+    // minutes. Read here rather than off a ref -- the hub only ever thins
+    // further, so a rough figure is enough and the viewport is known before
+    // layout. A rotation keeps whatever it fetched with.
     //
-    // The tab decides which half is asked for. The other half was between a
-    // third and two thirds of every response and was never drawn — and it is
-    // that saving which pays for asking for every sample rather than a summary.
+    // The tab decides which half is asked for; the other was a third to two
+    // thirds of every response and never drawn.
     const points = Math.round(globalThis.innerWidth * (globalThis.devicePixelRatio || 1))
     const series = tab === "latency" ? "ping" : "metrics"
     api<{ metrics: Point[]; ping: PingPoint[]; probes: Probes }>(
@@ -192,24 +181,22 @@ export function NodeDetail({ node }: { node: Node }) {
   }, [node.id, hours, tab])
 
   const m = node.metrics
-  // One series per probe that actually reported, labelled from the names the
-  // samples arrived with — the same for a visitor as for the admin.
-  // Memoised, all three of them: the node prop changes every couple of seconds
-  // as live metrics arrive, and rebuilding the chart's data array on each of
-  // those renders resets the brush — drag a window, let go, watch it snap back.
+  // One series per probe that reported, labelled from the names the samples
+  // arrived with. Memoised, as are the two below: the node prop changes every
+  // couple of seconds as live metrics arrive, and rebuilding the chart's data
+  // array on those renders resets the brush.
   const pingSeries = useMemo(
     () =>
       [...new Set((data?.ping ?? []).map((p) => p.task_id))]
         .map((id) => {
-          // Timeouts stay in: dropping them is what let a probe losing half
-          // its packets draw as an unbroken healthy line, and a probe that
-          // answered nothing at all disappear from the chart entirely.
+          // Timeouts stay in: dropping them draws a probe losing half its
+          // packets as an unbroken line, and one that never answered not at
+          // all.
           const points = (data?.ping ?? []).filter((p) => p.task_id === id)
-          // Left unrounded on purpose. `Math.round` here made 0.28% and 0.00%
-          // the same badge, which is no badge -- and the badge's absence is
-          // what a reader takes for "this probe lost nothing". A bucket only
-          // carries `loss` when it lost something, so a sum above zero is an
-          // exact "at least one timeout", and that is the thing worth keeping.
+          // Left unrounded: `Math.round` makes 0.28% and 0.00% the same badge,
+          // and no badge is what a reader takes for "lost nothing". A bucket
+          // carries `loss` only when it lost something, so a sum above zero is
+          // an exact "at least one timeout".
           const loss = points.reduce((sum, p) => sum + (p.loss ?? 0), 0) / (points.length || 1)
           return { id, name: data?.probes?.[id] ?? `探测 ${id}`, points, loss }
         })
@@ -217,27 +204,23 @@ export function NodeDetail({ node }: { node: Node }) {
     [data],
   )
 
-  // The hub answers in seconds; the time axis wants milliseconds. Memoised for
-  // the same reason as the rows below -- a new array identity resets the brush.
+  // The hub answers in seconds; the time axis wants milliseconds.
   const metricRows = useMemo(
     () => (data?.metrics ?? []).map((m) => ({ ...m, ts: m.ts * 1_000 })),
     [data],
   )
 
-  /// Axis tops for the two panels that have no capacity to measure against.
-  ///
-  /// CPU and a transfer rate are not "how full is it" questions: a machine can
-  /// sit at 0.4% CPU for a week, and against the fixed 0–100 this replaces,
-  /// two of the seven machines here drew as a straight line along the floor of
-  /// the panel. Memory and disk keep their totals as their tops instead, one
-  /// panel down, because for those "how full" is the entire question.
+  // Axis tops for the two panels with no capacity to measure against. CPU and
+  // a transfer rate are not "how full" questions: against a fixed 0-100, a
+  // machine that sits at 0.4% draws as a line along the floor of the panel.
+  // Memory and disk keep their totals as tops, because there "how full" is the
+  // entire question.
   const tops = useMemo(() => {
     const max = (pick: (m: Point) => number) =>
       metricRows.reduce((hi, m) => Math.max(hi, pick(m)), 0)
     return {
-      // A floor of 4% rather than none: a machine that never leaves 0.4% would
-      // otherwise get an axis of 0–0.4 and draw every scheduler blip as a
-      // mountain. Capped at 100, which is all a percentage has.
+      // A floor of 4%, or a machine that never leaves 0.4% gets an axis of
+      // 0-0.4 and draws every scheduler blip as a mountain. Capped at 100.
       cpu: axisTop(max((m) => m.cpu), 4, 10, 100),
       // Base 1024, so the steps are round in the unit `axisBytes` prints.
       rate: axisTop(max((m) => Math.max(m.net_rx, m.net_tx)), 1024, 1024),
@@ -251,18 +234,17 @@ export function NodeDetail({ node }: { node: Node }) {
   // Keyed off the full list, so a line keeps its shade when others are hidden.
   const style = (id: number) => PALETTE[pingSeries.findIndex((p) => p.id === id) % PALETTE.length]
 
-  // The hub stamps every sample with its bucket rather than with the second
-  // the probe happened to finish on, so probes reporting at the bucket's rate
-  // share rows instead of each bringing its own timestamps -- a day of four
-  // probes is 717 rows here, not 2 868. A probe slower than the bucket still
-  // leaves holes in its own column, which is what `connectNulls` is for.
+  // The hub stamps every sample with its bucket rather than the second the
+  // probe finished on, so probes reporting at the bucket's rate share rows
+  // instead of each bringing its own -- a day of four probes is 717 rows, not
+  // 2 868. A slower probe leaves holes in its own column, which is what
+  // `connectNulls` is for.
   //
-  // Every probe and both versions of every sample live in here, whether or not
-  // they are on screen: recharts resets the brush the moment the data array
-  // changes identity, and it re-reads a controlled selection only when the
-  // index props themselves change — which they do not. So hiding a probe or
-  // ticking 削峰 must not rebuild the array. They pick a `dataKey` instead, and
-  // the dragged window survives both.
+  // Every probe and both versions of every sample live here whether or not they
+  // are on screen: recharts resets the brush when the data array changes
+  // identity, and re-reads a controlled selection only when the index props
+  // change, which they do not. So hiding a probe or ticking 削峰 picks a
+  // `dataKey` instead of rebuilding the array.
   const pingRows = useMemo(() => {
     const rows = new Map<
       number,
@@ -284,18 +266,15 @@ export function NodeDetail({ node }: { node: Node }) {
     return [...rows.values()].sort((a, b) => a.ts - b.ts)
   }, [pingSeries])
 
-  // A real time axis, not the category one recharts defaults to. On a category
-  // axis the ticks are picked by index, so a stretch the agent was offline for
-  // closes up to nothing and the labels stop meaning what they say. `scale=time`
-  // also puts the ticks on round clock values instead of on whatever sample
-  // happened to land at every eleventh index.
+  // A real time axis, not the category one recharts defaults to: on a category
+  // axis ticks are picked by index, so a stretch the agent was offline for
+  // closes up to nothing.
   const timeAxis = (rows: { ts: number }[], from = 0, to = rows.length - 1) => ({
     dataKey: "ts",
     type: "number" as const,
     domain: ["dataMin", "dataMax"] as const,
-    // Explicit, because recharts would otherwise land them on 05:14 and 10:22.
-    // Any that still collide are dropped by `minTickGap`, which is what keeps
-    // the same axis readable on a phone and on a wide screen.
+    // Explicit, or recharts lands them on 05:14 and 10:22. Any that still
+    // collide are dropped by `minTickGap`.
     ticks: rows.length ? timeTicks(rows[from].ts, rows[to].ts) : undefined,
     tickFormatter: clockFor(hours),
     minTickGap: hours > 24 ? 72 : 40,
@@ -314,11 +293,10 @@ export function NodeDetail({ node }: { node: Node }) {
         )}
       </div>
 
-      {/* One flat row of facts. Two bordered groups earned their boxes while
-          half the facts were traffic figures; what is left is one machine's
-          spec sheet, and a box around a single topic is just a box. Three
-          across at lg, two at md, one on a phone — a kernel version or a CPU
-          model needs about 270px to stay whole. */}
+      {/* One flat row of facts: what is left after the traffic figures moved
+          out is one machine's spec sheet, and a box around a single topic is
+          just a box. Three across at lg, two at md, one on a phone -- a kernel
+          version or a CPU model needs about 270px to stay whole. */}
       <dl className="grid gap-x-6 gap-y-3 md:grid-cols-2 lg:grid-cols-3">
         <Fact label="系统" value={[osName(node.os), node.kernel].filter(Boolean).join(" · ")} />
         <Fact
@@ -389,17 +367,14 @@ export function NodeDetail({ node }: { node: Node }) {
           <p className="py-8 text-center text-sm text-muted-foreground">这段时间没有延迟数据</p>
         ) : (
           // An explicit pixel height on the column, so the chart can be
-          // `flex-1` inside it and the legend can be whatever it needs. That is
-          // the part a constant could not do: four probes are one row of chips
-          // on a desktop and two on a phone, and any number reserved for them
-          // is wrong on one of the two.
+          // `flex-1` inside it and the legend takes what it needs: four probes
+          // are one row of chips on a desktop and two on a phone, so any
+          // reserved constant is wrong on one of them.
           <div
             // `+ scrollY`, because getBoundingClientRect is measured from the
-            // viewport: this callback runs again on every render, and a live
-            // node re-renders every two seconds, so without it a scrolled page
-            // re-derives the height from a top that has moved. Today the
-            // min-height below happens to absorb it exactly; that is a
-            // coincidence of the arithmetic, not something to rely on.
+            // viewport and this callback runs on every render -- a live node
+            // re-renders every two seconds, so a scrolled page would re-derive
+            // the height from a top that has moved.
             ref={(el) => {
               if (el) setChartTop(el.getBoundingClientRect().top + scrollY)
             }}
@@ -409,17 +384,11 @@ export function NodeDetail({ node }: { node: Node }) {
                 : undefined
             }
             className="flex min-h-72 flex-col gap-3">
-            {/* `min-h-0` is what makes `flex-1` a real number here rather than
-                the content's own height: ResponsiveContainer reads its parent,
-                and a flex child that has not been told it may shrink reports
-                whatever the SVG last was. The column above it has a height in
-                pixels, so this resolves at layout rather than coming back 0 and
-                drawing nothing.
-                
-                It used to be `100svh-26rem`, which is what sits above this on a
-                desktop; on a phone that block is a single column of six facts
-                and half as tall again, so the chart ran off the bottom of the
-                screen and took the loss figures with it. */}
+            {/* `min-h-0` is what makes `flex-1` a real number rather than the
+                content's own height: ResponsiveContainer reads its parent, and
+                a flex child not told it may shrink reports whatever the SVG
+                last was. The column above has a height in pixels, so this
+                resolves at layout instead of coming back 0. */}
             <div className="min-h-0 w-full flex-1 text-muted-foreground">
               {shownProbes.length === 0 ? (
                 <p className="py-8 text-center text-sm">没有选中任何探测</p>
@@ -434,14 +403,14 @@ export function NodeDetail({ node }: { node: Node }) {
                         Math.min(zoom?.[1] ?? pingRows.length - 1, pingRows.length - 1),
                       )}
                     />
-                    {/* Not anchored at zero: these lines live in a narrow band far
-                        from it, and starting at zero flattens every wobble. */}
+                    {/* Not anchored at zero: these lines live in a narrow band
+                        far from it, and zero flattens every wobble. */}
                     <YAxis unit="ms" width={52} domain={["auto", "auto"]} {...AXIS} />
                     <Tooltip
                       labelFormatter={(ts) => new Date(Number(ts)).toLocaleString("zh-CN")}
-                      // The line is drawn from what answered, so without this a
-                      // bucket that lost most of its packets reads as a normal
-                      // reading. `dataKey` is `t7`/`s7`; the loss sits at `l7`.
+                      // The line is drawn from what answered, so without this
+                      // a bucket that lost most of its packets reads normal.
+                      // `dataKey` is `t7`/`s7`; the loss sits at `l7`.
                       formatter={(v, name, item) => {
                         const loss = Number(item?.payload?.[`l${String(item.dataKey).slice(1)}`] ?? 0)
                         return [`${Number(v)} ms${loss > 0 ? ` · 丢 ${loss}%` : ""}`, name]
@@ -449,17 +418,14 @@ export function NodeDetail({ node }: { node: Node }) {
                       contentStyle={{ fontSize: 12 }}
                     />
                     {/* Behind the line, the range that bucket's answers
-                        spanned -- Smokeping's "smoke". A bucket at the day
-                        window moves 63 ms at the 90th percentile against the
-                        25 ms the trend itself moves, so a line on its own draws
-                        the smaller of the two things happening.
-                        
-                        Only when one probe is left on screen. Rendered for all
-                        four, the bands overlap into a fog and their extremes
-                        drag the axis from 165–385 out to 140–420, flattening
-                        the lines they sit behind. So the overview stays lines,
-                        and the spread is what you get for narrowing to one --
-                        which is the point at which you are asking about it. */}
+                        spanned -- Smokeping's "smoke". At the day window a
+                        bucket moves 63 ms at the 90th percentile against the
+                        25 ms the trend moves, so a line alone draws the smaller
+                        of the two.
+
+                        Only with one probe on screen: rendered for four, the
+                        bands overlap into a fog and their extremes drag the
+                        axis from 165-385 out to 140-420. */}
                     {shownProbes.length === 1 &&
                       shownProbes.map((s) => (
                         <Area
@@ -500,10 +466,10 @@ export function NodeDetail({ node }: { node: Node }) {
               )}
             </div>
 
-            {/* Under the chart rather than above it: what the chart covers
-                is picked at the top, what is drawn in it is picked here.
-                Recharts paints the brush into the same SVG as the axis, so
-                this is as close beneath it as HTML can sit. */}
+            {/* Under the chart: what it covers is picked at the top, what is
+                drawn in it is picked here. Recharts paints the brush into the
+                same SVG as the axis, so this is as close beneath as HTML
+                sits. */}
             {(pingSeries.length > 1 || pingSeries.some((s) => s.loss > 0)) && (
             <div className="flex flex-wrap items-center justify-center gap-1.5">
               {pingSeries.map((s) => {
@@ -531,9 +497,8 @@ export function NodeDetail({ node }: { node: Node }) {
                       />
                     </svg>
                     {s.name}
-                    {/* The line is only what answered. A probe dropping half
-                        its packets draws exactly like a healthy one, so the
-                        figure has to be written somewhere. */}
+                    {/* The line is only what answered, so a probe dropping
+                        half its packets draws like a healthy one. */}
                     {s.loss > 0 && (
                       <span className="tabular-nums opacity-60">
                         丢 {s.loss < 1 ? "<1" : Math.round(s.loss)}%
@@ -567,11 +532,10 @@ export function NodeDetail({ node }: { node: Node }) {
           </Panel>
 
           {/* The axis top is the machine's memory, so the line's height is the
-              fraction in use and stays that whatever range is picked. Tracking
-              the window's own maximum instead — which is what an area chart
-              does by default, and what this did — put 127 MB of a 457 MB box at
-              the top of the panel, which reads as a machine about to run out.
-              The size is in the title because the axis top is now claiming it. */}
+              fraction in use whatever range is picked. Tracking the window's
+              own maximum, which is what an area chart does by default, puts
+              127 MB of a 457 MB box at the top of the panel. The size is in the
+              title because the axis top is claiming it. */}
           <Panel title={`内存 · ${bytes(node.mem_total)}`}>
             <ResponsiveContainer>
               <AreaChart data={metricRows}>
@@ -589,7 +553,7 @@ export function NodeDetail({ node }: { node: Node }) {
           </Panel>
 
           {/* A rate has no total to be a fraction of, so this one climbs the
-              ladder like CPU rather than being pinned to a capacity. */}
+              ladder like CPU rather than pinning to a capacity. */}
           <Panel title="网络速率">
             <ResponsiveContainer>
               <LineChart data={metricRows}>
@@ -607,9 +571,9 @@ export function NodeDetail({ node }: { node: Node }) {
             </ResponsiveContainer>
           </Panel>
 
-          {/* The disk it is filling, for the same reason as memory. Alice uses
-              2.7% of hers; against the window's own maximum that drew as a line
-              along the top of the panel, which is the opposite of what it says. */}
+          {/* The disk it is filling, for the same reason as memory: a node
+              using 2.7% of its disk draws along the top of the panel when the
+              axis tracks the window's own maximum. */}
           <Panel title={`硬盘 · ${bytes(node.disk_total)}`}>
             <ResponsiveContainer>
               <AreaChart data={metricRows}>

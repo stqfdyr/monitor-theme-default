@@ -21,8 +21,8 @@ npm run dev
 
 构建产物位于 `dist/`。提交前运行 `npm run build && npm run lint && npm test`。
 
-`npm test` 校验 `src/lib/format.ts`——页面上每个数字都从那里出来。它没有测试框架，
-Node 自己剥掉类型，失败时退出码非零。
+`npm test` 校验 `src/lib/format.ts`——页面上每个数字都从那里出来。没有测试框架，Node 自己剥掉
+类型，失败时退出码非零。
 
 ## 主题包
 
@@ -31,9 +31,8 @@ Node 自己剥掉类型，失败时退出码非零。
 ```text
 <themes-dir>/<short>/
 ├── theme.json
-├── dist/
-│   └── index.html
-└── preview.png        # 可选
+└── dist/
+    └── index.html
 ```
 
 `theme.json` 的字段均为字符串：
@@ -62,18 +61,23 @@ Node 自己剥掉类型，失败时退出码非零。
 | `GET /api/nodes/{id}/metrics` | 历史指标和延迟记录 |
 | `GET /api/ws` | 每 2 秒推送一次节点快照的 WebSocket |
 
-`metrics` 的三个查询参数都可省：`hours=N` 是窗口宽度；`points=W` 是调用方画得下的点数，
-只会让 hub 抽得更稀，不会更密；`series=metrics|ping` 只取要画的那一半，省掉的那半原本占
-响应的三分之一到三分之二。探测曲线的名字在响应的 `probes` 里随样本一起下发，匿名可读，
-所以画延迟图不需要第二个请求，也不需要管理员身份。
+`metrics` 的三个查询参数都可省：
+
+- `hours=N` 窗口宽度。**匿名上限 168，登录后 2160**，超出静默 clamp——降采样限的是响应行数，这个
+  上限限的是 hub 扫描多少行
+- `points=W` 调用方画得下的点数，只会让 hub 抽得更稀，不会更密
+- `series=metrics|ping` 只取要画的那一半，省掉的那半原本占响应的三分之一到三分之二
+
+探测曲线的名字在响应的 `probes` 里随样本一起下发，匿名可读，所以画延迟图不需要第二个请求，也不
+需要管理员身份。
 
 匿名访问 `GET /api/nodes` 仅返回 `public=1` 的节点，响应中不含 `ip`、`hostname`、`remark`。字段定义以 hub 的 `src/api.rs` 为准。
 
 未知路径回落到主题的 `dist/index.html`，客户端路由可用。`/admin/*` 由 hub 内置后台接管，不属于主题契约。
 
-本主题用 `/node/{id}` 作为详情页。hub 的回落对它是够的，但**hub 前面若有按路径做正向白名单的
-反代或 WAF，得把这个前缀放行**：从列表点进去只是 pushState，边缘看不见，刷新详情页才会真的请求
-`/node/{id}` —— 于是「点进去正常，一刷新就被拦」，而回到首页再点又好了。
+本主题用 `/node/{id}` 作为详情页。hub 的回落对它够用，但**hub 前面若有按路径做正向白名单的反代
+或 WAF，得把这个前缀放行**：从列表点进去只是 pushState，边缘看不见，刷新详情页才会真的请求
+`/node/{id}`，症状是「点进去正常，一刷新就被拦」。
 
 ## 许可
 

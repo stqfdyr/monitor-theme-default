@@ -20,9 +20,9 @@ function Tile({ icon: Icon, label, children }: {
 }
 
 /**
- * In and out side by side, the shape every traffic figure on this page takes —
- * stacked below sm, where two tiles share a phone's width and a figure like
- * "23.3 MB" has about 70px to live in and breaks across two lines instead.
+ * In and out side by side, the shape every traffic figure on this page takes.
+ * Stacked below sm, where two tiles share a phone's width and "23.3 MB" has
+ * about 70px to live in.
  */
 function Flow({ down, up, className }: { down: string; up: string; className?: string }) {
   return (
@@ -40,9 +40,9 @@ function Flow({ down, up, className }: { down: string; up: string; className?: s
 }
 
 /**
- * Bare polyline, no axes or tooltips: at this size a shape is all that reads,
- * and recharts would bring a chart's worth of machinery for it. Series share
- * one scale so the two throughput lines stay comparable.
+ * Bare polyline, no axes or tooltips: at this size only a shape reads, and
+ * recharts would bring a chart's worth of machinery for it. Series share one
+ * scale so the two throughput lines stay comparable.
  */
 function Spark({ series }: { series: { values: number[]; className: string }[] }) {
   const top = Math.max(...series.flatMap((s) => s.values), 1)
@@ -68,15 +68,15 @@ export function Summary({ nodes }: { nodes: Node[] }) {
   const online = nodes.filter((n) => n.online)
   const sum = (pick: (n: Node) => number) => nodes.reduce((total, n) => total + pick(n), 0)
 
-  // The busiest node rather than the average of them all: one machine pinned at
-  // 95% is the thing worth knowing, and a fleet of idle ones averages it away.
+  // The busiest node rather than the average: one machine pinned at 95% is
+  // what is worth knowing, and a fleet of idle ones averages it away.
   const busiest = online.reduce<Node | null>(
     (top, n) => (n.metrics && (!top || n.metrics.cpu > top.metrics!.cpu) ? n : top),
     null,
   )
   const cpu = busiest?.metrics?.cpu ?? 0
-  // Same push that produced `nodes` produced this sample, so the figure above
-  // the line is the line's own last point.
+  // The same push produced `nodes` and this sample, so the figure above the
+  // line is the line's own last point.
   const now = speedHistory.at(-1) ?? { rx: 0, tx: 0 }
 
   return (

@@ -1,8 +1,8 @@
-/// Every figure on the page goes through this file, so it is the one place
-/// worth a check. Run it with `npm test` — Node strips the types itself, so
-/// this needs no runner, no framework and no dependency.
-///
-/// Not imported by anything, so the bundle never sees it.
+// Every figure on the page goes through this file, so it is the one place
+// worth a check. Run it with `npm test` — Node strips the types itself, so
+// this needs no runner, no framework and no dependency.
+//
+// Not imported by anything, so the bundle never sees it.
 import { axisBytes, axisTop, bytes, cpuName, daysUntil, osName, pair, quarters, timeTicks, uptime } from "./format.ts"
 
 let failed = 0

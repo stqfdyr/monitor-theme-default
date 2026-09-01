@@ -9,16 +9,15 @@ import { api, useNodes, type Node } from "@/lib/api"
 
 type Me = { authed: boolean; github: boolean; site_name: string; public_page: boolean }
 
-/// Split off, because recharts is most of this bundle and the list page never
-/// draws a chart. The landing page every visitor gets is 242 kB rather than
-/// 629 kB (77 kB gzipped, against 188 kB); the rest is fetched right after
-/// that page paints, so a node still opens into a drawn chart.
+// Split off: recharts is most of this bundle and the list page draws no
+// chart. The landing page is 242 kB rather than 629 kB (77 kB gzipped against
+// 188 kB), and the rest is fetched right after it paints.
 const loadDetail = () => import("@/components/NodeDetail").then((m) => ({ default: m.NodeDetail }))
 const NodeDetail = lazy(loadDetail)
 
-/// `/node/{id}` is a real page: it survives a reload, can be linked to, and the
-/// back button leaves the detail view instead of the site. The hub serves
-/// index.html for any unknown path, so no server-side route is needed.
+// `/node/{id}` is a real page: it survives a reload, can be linked to, and
+// back leaves the detail view rather than the site. The hub serves index.html
+// for any unknown path, so no server-side route is needed.
 function useNodeRoute() {
   const read = () => {
     const match = location.pathname.match(/^\/node\/(\d+)/)
@@ -60,12 +59,11 @@ export default function App() {
 
   useEffect(() => {
     api<Me>("/me").then(setMe).catch(() => {})
-    // Warm the chunk here rather than leaving it to Suspense, which asks for it
-    // only once a render reaches the detail view -- itself waiting on /me. The
-    // split is meant to speed up the first paint, and without this it paid for
-    // that by dropping a full-page skeleton over the first node anyone opened:
-    // on a 4G profile, 2.6s from click to chart against 1.4s unsplit. Warm, it
-    // is 1.7s, and the landing page still ships 242 kB.
+    // Warmed here rather than left to Suspense, which asks for the chunk only
+    // once a render reaches the detail view -- itself waiting on /me. Without
+    // this the split pays for its first paint with a full-page skeleton over
+    // the first node opened: 2.6s click-to-chart on 4G against 1.4s unsplit,
+    // and 1.7s warm.
     void loadDetail()
   }, [])
 
@@ -76,10 +74,9 @@ export default function App() {
   const sorted = [...(nodes ?? [])].sort((a, b) => a.sort - b.sort || a.id - b.id)
   const selected = sorted.find((n) => n.id === open)
 
-  // `/node/{id}` is a page people bookmark and paste to each other, and every
-  // one of them was filed under the bare site name. The site name rather than
-  // "Monitor": the hub lets an operator rename the site, and the tab is the one
-  // place that name was not reaching.
+  // `/node/{id}` is a page people bookmark and paste to each other, so the tab
+  // needs the node's name. The site name rather than "Monitor", because the hub
+  // lets an operator rename the site.
   useEffect(() => {
     document.title = [selected?.name, me?.site_name || "Monitor"].filter(Boolean).join(" · ")
   }, [selected?.name, me?.site_name])
@@ -99,8 +96,8 @@ export default function App() {
             {me.site_name || "Monitor"}
           </button>
           <div className="flex-1" />
-          {/* The admin panel is a separate app built into the hub, not part of
-              this theme, so this is a real navigation rather than a route. */}
+          {/* The panel is a separate app built into the hub, not part of this
+              theme, so this is a navigation rather than a route. */}
           <Button variant="ghost" size="sm" asChild>
             <a href="/admin/">
               <Wrench /> {me.authed ? "进入后台" : "登录"}

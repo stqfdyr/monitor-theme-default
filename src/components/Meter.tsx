@@ -3,15 +3,13 @@ import type { ReactNode } from "react"
 type Props = { label: ReactNode; pct: number | null; foot: ReactNode; empty?: ReactNode }
 
 /**
- * One metric: name and percentage on top, bar in the middle, the raw numbers
- * underneath. Black on the light theme, white on the dark one — the length of
- * the bar is the whole message, and shading it by severity only muddied it.
+ * One metric: name and percentage on top, bar in the middle, raw numbers
+ * underneath. Monochrome, because the length of the bar is the whole message.
  */
 export function Meter({ label, pct, foot, empty = "—" }: Props) {
-  // null means the metric has no ceiling to fill (an unmetered plan), so the
-  // bar stays empty instead of claiming 0%. What goes where the percentage
-  // would be depends on why: unknown for a node with no metrics, ∞ for a plan
-  // that genuinely has no limit.
+  // null means the metric has no ceiling to fill, so the bar stays empty
+  // rather than claiming 0%. What replaces the percentage depends on why:
+  // unknown for a node with no metrics, ∞ for a plan with no limit.
   const filled = pct === null ? 0 : Math.min(100, Math.max(0, pct))
   return (
     <div className="min-w-0">

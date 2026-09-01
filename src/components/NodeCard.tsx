@@ -22,18 +22,18 @@ function monthUsage(node: Node): number {
   }
 }
 
-/// A node that has reported even once told the hub its shape — cores, memory,
-/// disk — and the hub keeps its traffic totals whether or not it is connected.
-/// A node that never connected has none of that, and is the only case with
-/// nothing to show.
+// A node that has reported once told the hub its shape -- cores, memory, disk
+// -- and the hub keeps its traffic totals whether it is connected or not. A
+// node that never connected is the only case with nothing to show.
 function deployed(node: Node) {
   return node.cpu_cores > 0 || node.mem_total > 0
 }
 
-/// Online state where the price used to sit: the dot plus how long the machine
-/// has been up — or, once it has gone, how long it has been gone, which is the
-/// first thing anyone asks of an offline node. Both are durations, so the badge
-/// keeps its shape either way.
+/**
+ * The dot plus how long the machine has been up, or once it is gone, how long
+ * it has been gone -- the first thing anyone asks of an offline node. Both are
+ * durations, so the badge keeps its shape either way.
+ */
 export function Status({ node }: { node: Node }) {
   const down = node.last_seen ? Date.now() / 1000 - node.last_seen : 0
   const label = node.online
@@ -42,8 +42,8 @@ export function Status({ node }: { node: Node }) {
       ? `离线 ${down >= 60 ? uptime(down) : ""}`
       : "未接入"
   return (
-    // Muted once it is not reporting: the page still shows real figures, they
-    // are just no longer current, and that is what the badge has to say.
+    // Muted once it stops reporting: the figures on the page are real, just no
+    // longer current.
     <Badge
       variant="outline"
       className={cn("tnum shrink-0 gap-1.5 font-normal", !node.online && "text-muted-foreground")}
@@ -54,16 +54,16 @@ export function Status({ node }: { node: Node }) {
   )
 }
 
-/// Traffic uses the plan's own counting rule, so the bar matches the quota the
-/// node is actually billed against.
+// Traffic uses the plan's own counting rule, so the bar matches the quota the
+// node is actually billed against.
 function trafficFoot(node: Node) {
   return node.traffic_limit > 0
     ? pair(monthUsage(node), node.traffic_limit)
     : `${bytes(monthUsage(node))} / ${FOREVER}`
 }
 
-/// No date means nothing ever expires — a permanent box, or one nobody set a
-/// renewal for. The symbol says that; a blank corner said nothing.
+// No date means nothing expires: a permanent box, or one nobody set a renewal
+// for. A blank corner says neither.
 function Expiry({ node }: { node: Node }) {
   const days = daysUntil(node.expires_at)
   if (days === null) return <span className="text-xs text-muted-foreground" title="永不到期">{FOREVER}</span>
@@ -82,9 +82,9 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
     <Card
       onClick={onOpen}
       // min-w-0: a grid item sizes to its content unless told otherwise, and
-      // the OS line below does not wrap — so on a phone the card grew past the
-      // column and took the whole page into a sideways scroll. The truncate
-      // inside only works once the card itself is allowed to be narrower.
+      // the OS line below does not wrap, so on a phone the card grows past its
+      // column and takes the page into a sideways scroll. The truncate inside
+      // only works once the card may be narrower.
       className="min-w-0 cursor-pointer gap-0 p-4 transition-colors hover:border-ring"
       role="button"
       tabIndex={0}
@@ -99,24 +99,21 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
             {node.arch ? ` · ${node.arch}` : ""}
           </p>
         </div>
-        {/* State on the right, identity on the left, one line each: the expiry
-            used to hang alone under the card, right-aligned against nothing. */}
+        {/* State right, identity left, one line each. */}
         <div className="flex shrink-0 flex-col items-end gap-1">
           <Status node={node} />
           <Expiry node={node} />
         </div>
       </div>
 
-      {/* One layout for both states. A disconnected node still knows its cores,
-          its memory and disk size, and its traffic totals — showing those with
-          the live figures left blank beats a stretched card with one line of
-          apology floating in the middle of it. */}
+      {/* One layout for both states: a disconnected node still knows its
+          cores, memory, disk size and traffic totals, and showing those with
+          the live figures blank beats a stretched card with one line in it. */}
       {deployed(node) ? (
         <>
           <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4">
-            {/* The core count belongs beside the word CPU, not trailing the
-                load averages: it is what the percentage and the three numbers
-                below it are both measured against. */}
+            {/* The core count belongs beside the word CPU: it is what the
+                percentage and the load averages are both measured against. */}
             <Meter
               label={`CPU ${node.cpu_cores} 核`}
               pct={m ? m.cpu : null}
@@ -160,8 +157,8 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
           </div>
         </>
       ) : (
-        /* Never connected: there is genuinely nothing to plot, so the card stays
-           short rather than padding itself out to match its neighbours. */
+        /* Never connected: nothing to plot, so the card stays short rather
+           than padding out to match its neighbours. */
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           还没有接入。在后台生成安装命令并执行一次。
         </p>

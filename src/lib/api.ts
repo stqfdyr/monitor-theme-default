@@ -77,11 +77,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /**
- * Fleet throughput, one sample per push. It lives beside the stream that feeds
- * it rather than inside the tile that draws it: the summary unmounts for as
- * long as a node page is open, so a buffer kept in it starts from nothing every
- * time someone comes back — and the tile's own two-second timer was a second
- * clock racing the hub's anyway. Two minutes at the hub's push interval.
+ * Fleet throughput, one sample per push. Kept beside the stream that feeds it
+ * rather than in the tile that draws it: the summary unmounts while a node page
+ * is open, so a buffer held there restarts from nothing every time someone
+ * comes back. Two minutes at the hub's push interval.
  */
 const KEEP = 60
 export const speedHistory: { rx: number; tx: number }[] = []
@@ -123,10 +122,9 @@ export function useNodes() {
     fetchOnce()
 
     const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/ws`
-    // A hub restart closes every stream. Reconnecting matters more than it
-    // looks: without it a page that outlived one deploy spent the rest of its
-    // life on the fallback poll, refreshing at a fifth of the live rate with
-    // nothing on screen to say so.
+    // A hub restart closes every stream. Without reconnecting, a page that
+    // outlives one deploy spends the rest of its life on the fallback poll,
+    // refreshing at a fifth of the live rate with nothing to say so.
     const connect = () => {
       try {
         socket = new WebSocket(url)
