@@ -96,6 +96,18 @@ function sample(nodes: Node[]) {
   if (speedHistory.length > KEEP) speedHistory.shift()
 }
 
+/** A bad report must not take every other node off the page. */
+export function safeNodes(nodes: Node[]): Node[] {
+  const number = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0
+  const fields = ["uptime", "cpu", "mem_total", "mem_used", "swap_total", "swap_used", "disk_total", "disk_used",
+    "net_rx", "net_tx", "total_rx", "total_tx", "month_rx", "month_tx", "tcp", "udp", "procs"] as const
+  return nodes.map((node) => {
+    const m = node.metrics
+    return !m || (fields.every((key) => number(m[key])) && Array.isArray(m.load) && m.load.length === 3 && m.load.every(number))
+      ? node : { ...node, metrics: null }
+  })
+}
+
 /**
  * Live node list. Uses the WebSocket the hub pushes every two seconds and
  * falls back to polling if it cannot be established.
@@ -111,8 +123,9 @@ export function useNodes() {
     let closed = false
 
     const receive = (list: Node[]) => {
-      sample(list)
-      setNodes(list)
+      const safe = safeNodes(list)
+      sample(safe)
+      setNodes(safe)
       setError(null)
     }
 

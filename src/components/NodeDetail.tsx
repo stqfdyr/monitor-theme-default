@@ -157,6 +157,7 @@ export function NodeDetail({ node }: { node: Node }) {
   const [chartTop, setChartTop] = useState(0)
 
   useEffect(() => {
+    let active = true
     // The charts must not keep drawing the old range while the new one is in
     // flight.
     // oxlint-disable-next-line react/set-state-in-effect
@@ -176,8 +177,9 @@ export function NodeDetail({ node }: { node: Node }) {
     api<{ metrics: Point[]; ping: PingPoint[]; probes: Probes }>(
       `/nodes/${node.id}/metrics?hours=${hours}&points=${points}&series=${series}`,
     )
-      .then(setData)
-      .catch(() => setData({ metrics: [], ping: [], probes: {} }))
+      .then((next) => { if (active) setData(next) })
+      .catch(() => { if (active) setData({ metrics: [], ping: [], probes: {} }) })
+    return () => { active = false }
   }, [node.id, hours, tab])
 
   const m = node.metrics

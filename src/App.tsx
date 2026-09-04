@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useState } from "react"
 import { Moon, Sun, Wrench } from "lucide-react"
 
 import { NodeCard } from "@/components/NodeCard"
@@ -54,18 +54,23 @@ function useTheme() {
 export default function App() {
   const [dark, toggleTheme] = useTheme()
   const [me, setMe] = useState<Me | null>(null)
+  const [meError, setMeError] = useState("")
   const { nodes, error } = useNodes()
   const [open, go] = useNodeRoute()
 
+  const loadMe = useCallback(() => {
+    return api<Me>("/me").then((next) => { setMe(next); setMeError("") }).catch((e: Error) => setMeError(e.message))
+  }, [])
+
   useEffect(() => {
-    api<Me>("/me").then(setMe).catch(() => {})
+    loadMe()
     // Warmed here rather than left to Suspense, which asks for the chunk only
     // once a render reaches the detail view -- itself waiting on /me. Without
     // this the split pays for its first paint with a full-page skeleton over
     // the first node opened: 2.6s click-to-chart on 4G against 1.4s unsplit,
     // and 1.7s warm.
     void loadDetail()
-  }, [])
+  }, [loadMe])
 
   useEffect(() => {
     if (me && !me.public_page && !me.authed) location.href = "/admin/"
@@ -81,7 +86,11 @@ export default function App() {
     document.title = [selected?.name, me?.site_name || "Monitor"].filter(Boolean).join(" · ")
   }, [selected?.name, me?.site_name])
 
-  if (!me) return <div className="grid min-h-svh place-items-center text-sm text-muted-foreground">加载中…</div>
+  if (!me || meError) return (
+    <div className="grid min-h-svh place-items-center p-6 text-sm text-muted-foreground">
+      {meError ? <div className="space-y-3 text-center"><p role="alert">加载失败：{meError}</p><Button onClick={loadMe}>重试</Button></div> : "加载中…"}
+    </div>
+  )
 
   // The status page is closed and nobody is signed in: send them to the panel.
   if (!me.public_page && !me.authed) return null
