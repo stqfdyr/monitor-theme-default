@@ -1,7 +1,7 @@
 {
   "name": "默认主题",
   "short": "default",
-  "description": "monitor 自带的状态面板，也是写新主题时的参考实现",
+  "description": "内置状态面板，黑白配色",
   "version": "0.1.14",
   "author": "stqfdyr",
   "url": "https://github.com/stqfdyr/monitor-theme-default"
