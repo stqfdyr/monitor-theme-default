@@ -7,7 +7,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Status } from "@/components/NodeCard"
+import { Country, Status } from "@/components/NodeCard"
 import { api, type Node } from "@/lib/api"
 import {
   axisBytes, axisTop, bytes, clockFor, quarters, cpuName, CYCLES, FOREVER, money, osName, rate, timeTicks,
@@ -285,6 +285,7 @@ export function NodeDetail({ node }: { node: Node }) {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <h2 className="truncate text-lg font-medium">{node.name}</h2>
+        <Country node={node} />
         <Status node={node} />
         {node.agent_version && (
           <Badge variant="outline" className="font-normal">

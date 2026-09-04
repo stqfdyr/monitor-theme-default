@@ -27,6 +27,8 @@ export type Node = {
   sort: number
   public: boolean
   online: boolean
+  /** ISO 3166-1 alpha-2, or empty when the hub could not place the address. */
+  country: string
   last_seen: number
   metrics: Metrics | null
   os: string

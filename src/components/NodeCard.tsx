@@ -54,6 +54,16 @@ export function Status({ node }: { node: Node }) {
   )
 }
 
+/** Where the machine is, in the same shape as the badge next to it. */
+export function Country({ node }: { node: Node }) {
+  if (!node.country) return null
+  return (
+    <Badge variant="outline" className="shrink-0 font-normal text-muted-foreground">
+      {node.country}
+    </Badge>
+  )
+}
+
 // Traffic uses the plan's own counting rule, so the bar matches the quota the
 // node is actually billed against.
 function trafficFoot(node: Node) {
@@ -92,7 +102,10 @@ export function NodeCard({ node, onOpen }: { node: Node; onOpen: () => void }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate font-medium">{node.name}</h3>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h3 className="truncate font-medium">{node.name}</h3>
+            <Country node={node} />
+          </div>
           <p className="mt-1 truncate text-xs text-muted-foreground">
             {node.os ? osName(node.os) : "等待首次上报"}
             {node.virt && node.virt !== "none" ? ` · ${node.virt}` : ""}
