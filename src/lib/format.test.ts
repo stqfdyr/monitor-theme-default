@@ -40,8 +40,17 @@ eq(axisBytes(0), "0 B", "零刻度")
 eq(axisTop(0.4, 4, 10, 100), 4, "闲置机器拿到地板值")
 eq(axisTop(63, 4, 10, 100), 80, "63% -> 0/20/40/60/80")
 eq(axisTop(200, 4, 10, 100), 100, "百分比封顶")
-eq(axisTop(25_000_000, 1024, 1024), 30 * 1024 ** 2, "字节轴按 1024 取整")
-eq(quarters(30 * 1024 ** 2).map(axisBytes), ["0 B", "7.5 MB", "15 MB", "22.5 MB", "30 MB"], "四条网格线都是整值")
+eq(axisTop(25_000_000, 1024, 1024), 24 * 1024 ** 2, "字节轴按 1024 取整")
+eq(quarters(24 * 1024 ** 2).map(axisBytes), ["0 B", "6 MB", "12 MB", "18 MB", "24 MB"], "四条网格线都是整值")
+// 轴顶必须来自梯子，不能是数据本身。十进制梯子配 1024 进制的 scale 最大只到
+// 10·1024^k，越过那一档 find 就落空，`?? target` 兜底把轴顶设成 max —— 网格线随之
+// 变成 max/4 这种非整值，正是这个函数要消灭的东西。只在 [4,40)·1024^k 几段窄带里
+// 成立，而 40 KB/s–4 MB/s 恰好是 VPS 最常见的区间。
+for (const max of [3_000, 300_000, 3_000_000, 300_000_000]) {
+  const top = axisTop(max, 1024, 1024)
+  eq(top > max, true, `${max} B/s 的轴顶不能等于数据本身`)
+  eq(top / max < 1.5, true, `${max} B/s 的轴顶不能浪费半块面板`)
+}
 
 // timeTicks: round clock values, phased on local midnight rather than the
 // epoch, and never more than asked for.

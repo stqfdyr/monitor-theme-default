@@ -59,7 +59,13 @@ export default function App() {
   const [open, go] = useNodeRoute()
 
   const loadMe = useCallback(() => {
-    return api<Me>("/me").then((next) => { setMe(next); setMeError("") }).catch((e: Error) => setMeError(e.message))
+    // `|| "..."`, because an empty message reads as no error at all: api()
+    // falls back to res.statusText, which HTTP/2 and HTTP/3 removed, so a
+    // bodiless 502 from a proxy arrives as "". The check below would then take
+    // the loading branch and the retry button would never render.
+    return api<Me>("/me")
+      .then((next) => { setMe(next); setMeError("") })
+      .catch((e: Error) => setMeError(e.message || "网络错误"))
   }, [])
 
   useEffect(() => {
@@ -86,7 +92,9 @@ export default function App() {
     document.title = [selected?.name, me?.site_name || "Monitor"].filter(Boolean).join(" · ")
   }, [selected?.name, me?.site_name])
 
-  if (!me || meError) return (
+  // Only while there is nothing else to show. Once `me` has loaded, a later
+  // failure belongs beside the page rather than over it.
+  if (!me) return (
     <div className="grid min-h-svh place-items-center p-6 text-sm text-muted-foreground">
       {meError ? <div className="space-y-3 text-center"><p role="alert">加载失败：{meError}</p><Button onClick={loadMe}>重试</Button></div> : "加载中…"}
     </div>

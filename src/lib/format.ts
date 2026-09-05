@@ -178,8 +178,27 @@ export function timeTicks(from: number, to: number, count = 8): number[] {
 export function axisTop(max: number, floor: number, base = 10, cap = Infinity): number {
   const target = Math.min(cap, Math.max(max, floor)) / 4
   const scale = base ** Math.floor(Math.log(target) / Math.log(base))
-  const step = [1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10].map((m) => m * scale).find((n) => n >= target)
+  const step = LADDER[base].map((m) => m * scale).find((n) => n >= target)
   return Math.min(cap, (step ?? target) * 4)
+}
+
+/**
+ * Round multipliers, per base. A decade of base 1024 spans 1024, so the
+ * decimal ladder cannot reach across one: with `scale` at 1024^k, the largest
+ * step it offers is 10 · 1024^k, and any target above that found nothing. The
+ * `?? target` then fell through to `top = max` -- no round step, no round
+ * gridlines, which is the whole thing this function is for. It held only for a
+ * peak inside [4, 40) · 1024^k, so a byte axis was wrong more often than
+ * right: 40 KB/s to 4 MB/s, the ordinary range for a VPS, drew 2.9 MB with
+ * quarters at 732.4 KB.
+ *
+ * Doubling with a half-step in between for base 1024: every multiplier is
+ * exact in the unit `axisBytes` prints, and the top never overshoots the data
+ * by more than half.
+ */
+const LADDER: Record<number, number[]> = {
+  10: [1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10],
+  1024: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024].flatMap((n) => [n, n * 1.5]),
 }
 
 /**
