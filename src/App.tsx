@@ -55,7 +55,7 @@ export default function App() {
   const [dark, toggleTheme] = useTheme()
   const [me, setMe] = useState<Me | null>(null)
   const [meError, setMeError] = useState("")
-  const { nodes, error } = useNodes()
+  const { nodes, error, closed } = useNodes()
   const [open, go] = useNodeRoute()
 
   const loadMe = useCallback(() => {
@@ -77,6 +77,14 @@ export default function App() {
     // and 1.7s warm.
     void loadDetail()
   }, [loadMe])
+
+  // The status page was closed while this tab was open. `me` is whatever it
+  // said at load, so ask again -- the effect below then sends an anonymous
+  // visitor to the panel instead of leaving them on a list that stopped
+  // updating with nothing but a red line to say why.
+  useEffect(() => {
+    if (closed) void loadMe()
+  }, [closed, loadMe])
 
   useEffect(() => {
     if (me && !me.public_page && !me.authed) location.href = "/admin/"

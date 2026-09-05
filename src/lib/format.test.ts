@@ -40,8 +40,16 @@ eq(axisBytes(0), "0 B", "零刻度")
 eq(axisTop(0.4, 4, 10, 100), 4, "闲置机器拿到地板值")
 eq(axisTop(63, 4, 10, 100), 80, "63% -> 0/20/40/60/80")
 eq(axisTop(200, 4, 10, 100), 100, "百分比封顶")
-eq(axisTop(25_000_000, 1024, 1024), 24 * 1024 ** 2, "字节轴按 1024 取整")
-eq(quarters(24 * 1024 ** 2).map(axisBytes), ["0 B", "6 MB", "12 MB", "18 MB", "24 MB"], "四条网格线都是整值")
+eq(axisTop(25_000_000, 1024, 1024), 32 * 1024 ** 2, "字节轴按 1024 取整")
+eq(quarters(32 * 1024 ** 2).map(axisBytes), ["0 B", "8 MB", "16 MB", "24 MB", "32 MB"], "四条网格线都是整值")
+// 四条刻度是 step·[1,2,3,4]，约束落在第三条上：3m 也得能被 axisBytes 精确打出来，
+// 而它只给一位小数。2 的幂都满足；半档 384 和 768 不满足，第三条刻度分别是 1.125 Ki
+// 和 2.25 Ki，打成 "1.1" 和 "2.3"。这两档正好盖住 1–1.5 MB/s 与 2–3 MB/s。
+// 断言打在标签上——只看 top 的比例会从这条坏刻度旁边走过去。
+eq(quarters(axisTop(2_621_440, 1024, 1024)).map(axisBytes),
+   ["0 B", "1 MB", "2 MB", "3 MB", "4 MB"], "峰值 2.5 MB/s 的四条刻度")
+eq(quarters(axisTop(1_258_291, 1024, 1024)).map(axisBytes),
+   ["0 B", "512 KB", "1 MB", "1.5 MB", "2 MB"], "峰值 1.2 MB/s 的四条刻度")
 // 轴顶必须来自梯子，不能是数据本身。十进制梯子配 1024 进制的 scale 最大只到
 // 10·1024^k，越过那一档 find 就落空，`?? target` 兜底把轴顶设成 max —— 网格线随之
 // 变成 max/4 这种非整值，正是这个函数要消灭的东西。只在 [4,40)·1024^k 几段窄带里
@@ -49,7 +57,8 @@ eq(quarters(24 * 1024 ** 2).map(axisBytes), ["0 B", "6 MB", "12 MB", "18 MB", "2
 for (const max of [3_000, 300_000, 3_000_000, 300_000_000]) {
   const top = axisTop(max, 1024, 1024)
   eq(top > max, true, `${max} B/s 的轴顶不能等于数据本身`)
-  eq(top / max < 1.5, true, `${max} B/s 的轴顶不能浪费半块面板`)
+  // 2 而不是 1.5：梯子去掉半档之后，最坏情况是下一档 2 的幂。
+  eq(top / max < 2, true, `${max} B/s 的轴顶不能浪费整块面板`)
 }
 
 // timeTicks: round clock values, phased on local midnight rather than the

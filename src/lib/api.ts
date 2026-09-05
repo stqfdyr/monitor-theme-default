@@ -115,6 +115,11 @@ export function safeNodes(nodes: Node[]): Node[] {
 export function useNodes() {
   const [nodes, setNodes] = useState<Node[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Set when the hub answers 401: the status page has been closed to anonymous
+  // callers since this tab loaded. The hub ends the stream on that too, so it
+  // surfaces on the fallback fetch the reconnect starts -- a close only lets a
+  // client go back and ask what it is now, it cannot make it.
+  const [closed, setClosed] = useState(false)
 
   useEffect(() => {
     let socket: WebSocket | null = null
@@ -127,12 +132,16 @@ export function useNodes() {
       sample(safe)
       setNodes(safe)
       setError(null)
+      setClosed(false)
     }
 
     const fetchOnce = () =>
       api<{ nodes: Node[] }>("/nodes")
         .then((d) => receive(d.nodes))
-        .catch((e: Error) => setError(e.message))
+        .catch((e: Error) => {
+          setError(e.message)
+          if (e instanceof ApiError && e.status === 401) setClosed(true)
+        })
 
     fetchOnce()
 
@@ -172,5 +181,5 @@ export function useNodes() {
     }
   }, [])
 
-  return { nodes, error }
+  return { nodes, error, closed }
 }

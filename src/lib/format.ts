@@ -192,13 +192,19 @@ export function axisTop(max: number, floor: number, base = 10, cap = Infinity): 
  * right: 40 KB/s to 4 MB/s, the ordinary range for a VPS, drew 2.9 MB with
  * quarters at 732.4 KB.
  *
- * Doubling with a half-step in between for base 1024: every multiplier is
- * exact in the unit `axisBytes` prints, and the top never overshoots the data
- * by more than half.
+ * Powers of two for base 1024, with no half-step between them. The four ticks
+ * are `step · [1, 2, 3, 4]`, so the one that constrains the ladder is the third:
+ * `3m` has to land on a label `axisBytes` can print, and it prints one decimal.
+ * Every power of two does (3 · 512 Ki = 1.5 Mi); the half-steps 384 and 768 do
+ * not -- their third gridline is 1.125 Ki and 2.25 Ki, printed as "1.1" and
+ * "2.3", one wrong label under a top and two gridlines that are right. Those
+ * two rungs are selected for peaks in (1, 1.5] and (2, 3] · 1024^k, which is
+ * 1-1.5 MB/s and 2-3 MB/s: inside the ordinary range named above. The price of
+ * dropping them is a top that may overshoot the data by 2x rather than 1.5x.
  */
 const LADDER: Record<number, number[]> = {
   10: [1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10],
-  1024: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024].flatMap((n) => [n, n * 1.5]),
+  1024: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024],
 }
 
 /**
